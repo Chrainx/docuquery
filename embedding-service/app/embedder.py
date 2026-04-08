@@ -23,9 +23,7 @@ class Embedder:
         self.model_name = model_name
         self.dimension = self.model.get_sentence_embedding_dimension()
         elapsed = time.time() - start
-        logger.info(
-            "Model loaded in %.2fs (dimension: %d)", elapsed, self.dimension
-        )
+        logger.info("Model loaded in %.2fs (dimension: %d)", elapsed, self.dimension)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for a list of texts.
