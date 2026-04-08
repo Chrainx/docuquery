@@ -48,8 +48,8 @@ type QueryRequest struct {
 
 // QueryResponse is the response from the query endpoint.
 type QueryResponse struct {
-	Answer  string         `json:"answer"`
-	Sources []SourceChunk  `json:"sources"`
+	Answer  string        `json:"answer"`
+	Sources []SourceChunk `json:"sources"`
 }
 
 // SourceChunk is a retrieved chunk included in the query response.

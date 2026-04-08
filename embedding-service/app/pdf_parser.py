@@ -1,6 +1,5 @@
 """PDF text extraction with page-level tracking using PyMuPDF."""
 
-import io
 import logging
 from dataclasses import dataclass
 

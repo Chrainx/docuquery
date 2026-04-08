@@ -48,8 +48,8 @@ func (h *Handler) Health(c *gin.Context) {
 	err := h.db.Ping(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"status":  "unhealthy",
-			"error":   "database connection failed",
+			"status": "unhealthy",
+			"error":  "database connection failed",
 		})
 		return
 	}
