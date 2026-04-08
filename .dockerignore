@@ -1,0 +1,13 @@
+.git
+.github
+docs
+*.md
+!README.md
+.env
+.env.*
+**/.venv
+**/node_modules
+**/.next
+**/tmp
+**/coverage*
+**/__pycache__
