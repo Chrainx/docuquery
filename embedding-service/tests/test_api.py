@@ -1,9 +1,9 @@
 """Tests for the FastAPI application endpoints."""
 
 import io
-import pytest
-import fitz
 
+import fitz
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app

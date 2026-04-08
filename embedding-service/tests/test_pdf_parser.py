@@ -1,7 +1,7 @@
 """Tests for the PDF parser."""
 
-import pytest
 import fitz  # PyMuPDF
+import pytest
 
 from app.pdf_parser import extract_pages
 

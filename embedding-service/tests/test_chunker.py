@@ -1,8 +1,6 @@
 """Tests for the text chunker."""
 
-import pytest
-
-from app.chunker import Chunk, chunk_pages
+from app.chunker import chunk_pages
 from app.pdf_parser import PageText
 
 
