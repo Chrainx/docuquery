@@ -11,7 +11,7 @@ Common issues and how to fix them.
 The model hasn't been pulled yet:
 
 ```bash
-ollama pull llama3.1:8b
+ollama pull llama3.2:1b
 ```
 
 Verify it's available:

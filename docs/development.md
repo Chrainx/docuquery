@@ -38,7 +38,7 @@ make infra
 Pull the LLM model (one-time, ~4.7 GB download):
 
 ```bash
-ollama pull llama3.1:8b
+ollama pull llama3.2:1b
 ```
 
 Start Ollama if it isn't running:
@@ -196,5 +196,5 @@ frontend/
    .venv/bin/pip install -r requirements.txt
    ```
 
-5. **Port conflicts.** If another service uses 3000, 8080, 8001, or 5432,
+5. **Port conflicts.** If another service uses 3000, 8080, 8001, or 5433,
    change them in `.env`.

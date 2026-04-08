@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   - All services running (make up)
-#   - Ollama running with llama3.1:8b pulled
+#   - Ollama running with llama3.2:1b pulled
 #
 # Usage:
 #   ./scripts/e2e-test.sh

@@ -55,7 +55,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-docuquery}:${POSTGRES_PASSWORD:-docuquery_dev_password}@postgres:5432/${POSTGRES_DB:-docuquery}?sslmode=disable
       EMBEDDING_SERVICE_URL: http://embedding-service:8001
       OLLAMA_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
       BACKEND_PORT: "8080"
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
       LOG_LEVEL: ${LOG_LEVEL:-debug}

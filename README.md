@@ -65,7 +65,7 @@ cd docuquery
 cp .env.example .env
 
 # 3. Pull the LLM model
-ollama pull llama3.1:8b
+ollama pull llama3.2:1b
 
 # 4. Start all services
 make up
