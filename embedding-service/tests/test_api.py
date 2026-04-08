@@ -1,12 +1,28 @@
 """Tests for the FastAPI application endpoints."""
 
 import io
+import math
+from unittest.mock import MagicMock
 
 import fitz
 import pytest
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def mock_embedder():
+    """Inject a mock embedder so tests don't need the real model."""
+    mock = MagicMock()
+    mock.model_name = "all-MiniLM-L6-v2"
+    mock.dimension = 384
+    # Return a unit vector of length 384
+    mock.embed.return_value = [[1.0 / (384**0.5)] * 384]
+    main_module.embedder = mock
+    yield mock
+    main_module.embedder = None
 
 
 @pytest.fixture
@@ -89,7 +105,8 @@ class TestParseEndpoint:
 class TestEmbedEndpoint:
     """Tests for the /embed endpoint."""
 
-    def test_embed_single_text(self, client):
+    def test_embed_single_text(self, client, mock_embedder):
+        mock_embedder.embed.return_value = [[1.0 / (384**0.5)] * 384]
         response = client.post("/embed", json={"texts": ["Hello, world!"]})
         assert response.status_code == 200
         data = response.json()
@@ -98,7 +115,8 @@ class TestEmbedEndpoint:
         assert len(data["embeddings"]) == 1
         assert len(data["embeddings"][0]) == 384
 
-    def test_embed_multiple_texts(self, client):
+    def test_embed_multiple_texts(self, client, mock_embedder):
+        mock_embedder.embed.return_value = [[1.0 / (384**0.5)] * 384] * 3
         response = client.post(
             "/embed",
             json={"texts": ["First sentence.", "Second sentence.", "Third sentence."]},
@@ -112,10 +130,9 @@ class TestEmbedEndpoint:
         response = client.post("/embed", json={"texts": []})
         assert response.status_code == 422
 
-    def test_embeddings_are_normalized(self, client):
+    def test_embeddings_are_normalized(self, client, mock_embedder):
         """Embeddings should be L2-normalized (unit vectors)."""
-        import math
-
+        mock_embedder.embed.return_value = [[1.0 / (384**0.5)] * 384]
         response = client.post("/embed", json={"texts": ["Test normalization"]})
         data = response.json()
         embedding = data["embeddings"][0]
