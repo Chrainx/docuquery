@@ -154,7 +154,7 @@ export function ChatInterface({
   const hasDocuments = documents.length > 0;
 
   return (
-    <div className="card flex h-[600px] flex-col">
+    <div className="flex h-[600px] flex-col rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
       {/* Header with document selector */}
       <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
@@ -246,7 +246,7 @@ export function ChatInterface({
         <button
           type="submit"
           disabled={!input.trim() || isLoading || !hasDocuments}
-          className="btn-primary"
+          className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
         </button>

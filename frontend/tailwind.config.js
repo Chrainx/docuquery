@@ -14,6 +14,15 @@ module.exports = {
           900: "#1e3a5f",
         },
       },
+      animation: {
+        "slide-in": "slideIn 0.2s ease-out",
+      },
+      keyframes: {
+        slideIn: {
+          from: { opacity: "0", transform: "translateX(100%)" },
+          to: { opacity: "1", transform: "translateX(0)" },
+        },
+      },
     },
   },
   plugins: [],

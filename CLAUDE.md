@@ -46,7 +46,7 @@ docuquery/
 ├── frontend/                    # Next.js 14
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── globals.css      # Tailwind + custom CSS
+│   │   │   ├── globals.css      # Tailwind directives only (no custom classes)
 │   │   │   ├── layout.tsx       # Root layout with Providers
 │   │   │   └── page.tsx         # Main page orchestrating components
 │   │   ├── components/
