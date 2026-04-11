@@ -68,7 +68,7 @@ type Chunk struct {
 
 // HistoryMessage is a single turn in the conversation history.
 type HistoryMessage struct {
-	Role    string `json:"role"`    // "user" or "assistant"
+	Role    string `json:"role"` // "user" or "assistant"
 	Content string `json:"content"`
 }
 
