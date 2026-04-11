@@ -67,7 +67,7 @@ docuquery/
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.js
-│   ├── jest.config.js           # ⚠️ Has typo: setupFilesAfterSetup → setupFilesAfterSetup (see Known Issues)
+│   ├── jest.config.js           # Jest config: setupFilesAfterEnv, moduleNameMapper for @/ alias
 │   ├── jest.setup.ts
 │   └── Dockerfile
 ├── backend/                     # Go API server
@@ -89,9 +89,11 @@ docuquery/
 │   │       ├── ollama_client.go         # HTTP client for Ollama (streaming + non-streaming)
 │   │       └── ollama_client_test.go    # Tests for BuildPrompt
 │   ├── migrations/
-│   │   └── 001_initial.sql     # pgvector extension, documents table, chunks table, HNSW index
+│   │   ├── 001_initial.sql     # pgvector extension, documents table, chunks table, HNSW index
+│   │   └── 002_directories.sql # directories table, directory_id FK on documents
+│   ├── cmd/api/migrations/     # Mirror of migrations/ for go:embed (must stay in sync)
 │   ├── go.mod
-│   ├── go.sum                  # ⚠️ Empty — needs `go mod tidy`
+│   ├── go.sum
 │   ├── .golangci.yml
 │   └── Dockerfile
 ├── embedding-service/           # Python FastAPI
@@ -164,56 +166,32 @@ docuquery/
 | POST | /parse | Upload PDF → returns chunks with page_numbers |
 | POST | /embed | `{texts: string[]}` → `{embeddings: float[][]}` |
 
-## Current State & Known Issues
+## Current State
 
-### Must Fix Before Running
+### Setup (fresh clone)
 
-1. **`go.sum` is empty** — run `go mod tidy` in `backend/` to populate dependencies
-2. **`node_modules/` missing** — run `npm install` in `frontend/`
-3. **Python venv missing** — run `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` in `embedding-service/`
-4. **`go.mod` has placeholder** — replace `Chrainx` with actual GitHub username in `go.mod` and all Go import paths
-5. **`Chrainx` appears in many files** — global find-and-replace needed:
-   - `go.mod`
-   - All `.go` files (import paths)
-   - `README.md`
-   - `CONTRIBUTING.md`
-   - `.golangci.yml`
-   - `layout.tsx` (GitHub link)
+1. Run `npm install` in `frontend/`
+2. Run `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` in `embedding-service/`
+3. Copy `.env.example` to `.env` and adjust ports/model if needed
+4. `make up` — starts all services via Docker Compose
 
-### Known Code Issues
+### Known Gotchas
 
-1. **`jest.config.js`** — the key `setupFilesAfterSetup` should be `setupFilesAfterSetup`
-   - Wait, actually these look the same. The real Jest key is **`setupFilesAfterSetup`** — check the actual spelling: `s-e-t-u-p-F-i-l-e-s-A-f-t-e-r-S-e-t-u-p`. Actually the correct Jest option name is `setupFilesAfterSetup`. Open the file and verify.
+- **`backend/cmd/api/migrations/`** must be kept in sync with `backend/migrations/` — the Go binary embeds from the former via `//go:embed migrations/*.sql`. When adding a new migration, copy it to both directories.
+- **Ollama on Linux Docker** — `host.docker.internal:11434` works on macOS/Windows Docker Desktop. On Linux, add `--add-host=host.docker.internal:host-gateway` to the backend service in `docker-compose.yml`.
+- **PostgreSQL port** — default is `5433` in `.env` to avoid conflicts with a locally-running Postgres.
+- **SSE streaming** — the frontend SSE parser is hand-rolled (not using `EventSource`) because the query is a POST. Works correctly but keep in mind if debugging streaming issues.
+- **`models.go` ErrorMessage** — `COALESCE` in all SQL queries prevents null-scan errors on the nullable `error_message` column. Maintain this pattern if adding new queries.
 
-2. **Go `embed` directive in `main.go`** — the `//go:embed ../../migrations/*.sql` path assumes the binary runs from `cmd/api/`, which is correct for `go run ./cmd/api` but the embedded FS path may fail. The fallback `runMigrationsFromDisk` handles this but test it.
+### What's Working
 
-3. **Go `models.go`** — `ErrorMessage` field is `string` but the SQL column is nullable. The `COALESCE` in queries handles this, but if any query misses it, there'll be a scan error.
-
-4. **pgvector casting** — the `pgvectorString` function builds the vector string manually (`[0.1,0.2,0.3]`). This works with pgvector but verify with actual pgx driver that `$1::vector` casting works with string input.
-
-5. **SSE streaming** — the frontend SSE parser is hand-rolled (not using `EventSource` because we need POST). This works but edge cases around buffering may need testing.
-
-6. **Docker Compose** — the backend uses `host.docker.internal:11434` for Ollama, which works on macOS/Windows Docker Desktop but may need `--add-host` on Linux.
-
-### What's Working (Code Complete)
-
-- ✅ Full project structure
-- ✅ Python embedding service (PDF parser, chunker, embedder, FastAPI app)
-- ✅ Go backend (all handlers, services, config, middleware, migrations)
-- ✅ Next.js frontend (upload zone, document list, chat with SSE streaming, source citations)
-- ✅ Docker Compose for full stack
-- ✅ CI/CD workflows (GitHub Actions)
-- ✅ GitHub Issue templates + creation script
-- ✅ All 18 issues documented
-- ✅ Comprehensive documentation (design decisions, API ref, dev guide, troubleshooting)
+- ✅ Full RAG pipeline: upload → chunk → embed → store → query → retrieve → generate → stream
+- ✅ Directories with shared query context
+- ✅ Drag-and-drop document assignment to directories
+- ✅ Dark UI with search/filter, collapsible upload zone
+- ✅ Docker Compose full stack
+- ✅ CI/CD (GitHub Actions)
 - ✅ Unit tests (Go, Python, TypeScript)
-- ✅ E2E test script
-
-### What Has NOT Been Tested End-to-End
-
-- The full pipeline: upload → chunk → embed → store → query → retrieve → generate → stream
-- This requires all services running simultaneously with Ollama
-- Start order matters: PostgreSQL → embedding service → backend → frontend
 
 ## Development Commands
 

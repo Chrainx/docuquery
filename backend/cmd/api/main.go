@@ -23,7 +23,7 @@ import (
 )
 
 //go:embed migrations/*.sql
-var migrations embed.FS
+var migrationsFS embed.FS
 
 func main() {
 	// Load config.
@@ -145,9 +145,9 @@ func main() {
 }
 
 func runMigrations(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) error {
-	entries, err := migrations.ReadDir("../../migrations")
+	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {
-		// If embedded FS fails, try reading from disk.
+		// Embedded FS unavailable — fall back to reading from disk.
 		return runMigrationsFromDisk(ctx, pool, logger)
 	}
 
@@ -156,7 +156,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger)
 			continue
 		}
 
-		content, err := migrations.ReadFile("migrations/" + entry.Name())
+		content, err := migrationsFS.ReadFile("migrations/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("reading migration %s: %w", entry.Name(), err)
 		}

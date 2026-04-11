@@ -38,15 +38,19 @@ Upload a PDF document for processing.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `file` | file | Yes | PDF file (max 50 MB) |
+| `directory_id` | UUID | No | Assign document to a directory immediately on upload |
 
 **Response** `202 Accepted`
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "filename": "annual-report-2024.pdf",
-  "status": "processing"
+  "status": "processing",
+  "directory_id": "661e9511-f30c-52e5-b827-557766551111"
 }
 ```
+
+`directory_id` is `null` if not provided.
 
 The document is processed asynchronously. Poll `GET /documents/:id` to check
 when processing completes.

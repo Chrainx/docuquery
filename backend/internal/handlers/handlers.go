@@ -143,8 +143,10 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 		return
 	}
 
-	// Update page count.
-	_, _ = h.db.Exec(ctx, `UPDATE documents SET page_count = $1 WHERE id = $2`, parsed.PageCount, docID)
+	// Update page count (best-effort — processing continues even if this fails).
+	if _, err := h.db.Exec(ctx, `UPDATE documents SET page_count = $1 WHERE id = $2`, parsed.PageCount, docID); err != nil {
+		log.Warn("failed to update page count", "error", err)
+	}
 
 	if len(parsed.Chunks) == 0 {
 		log.Warn("no chunks extracted from PDF")
