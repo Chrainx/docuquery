@@ -1,42 +1,42 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Folder, FolderOpen, Plus, Trash2, X } from "lucide-react";
-import { createDirectory, deleteDirectory, listDirectories } from "@/lib/api";
+import { Folder, FolderOpen, Layers, Plus, Trash2, X } from "lucide-react";
+import { assignDocumentToDirectory, createDirectory, deleteDirectory, listDirectories } from "@/lib/api";
 import type { Directory } from "@/types";
 
 interface DirectoryListProps {
   selectedDirectoryId: string | null;
   onSelectDirectory: (id: string | null) => void;
   onDirectoriesChange?: () => void;
+  isDragging?: boolean;
 }
 
 export default function DirectoryList({
   selectedDirectoryId,
   onSelectDirectory,
   onDirectoriesChange,
+  isDragging = false,
 }: DirectoryListProps) {
   const [directories, setDirectories] = useState<Directory[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const fetchDirectories = async () => {
     try {
-      const dirs = await listDirectories();
-      setDirectories(dirs);
-    } catch (_e) {
-      // Silently fail — directories are optional
-    } finally {
+      setDirectories(await listDirectories());
+    } catch { /* ignore */ } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDirectories();
-    const interval = setInterval(fetchDirectories, 5000);
-    return () => clearInterval(interval);
+    const t = setInterval(fetchDirectories, 5000);
+    return () => clearInterval(t);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -44,14 +44,10 @@ export default function DirectoryList({
     if (!newName.trim()) return;
     try {
       await createDirectory(newName.trim(), newDescription.trim() || undefined);
-      setNewName("");
-      setNewDescription("");
-      setIsCreating(false);
+      setNewName(""); setNewDescription(""); setIsCreating(false);
       await fetchDirectories();
       onDirectoriesChange?.();
-    } catch (_e) {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -62,102 +58,132 @@ export default function DirectoryList({
       if (selectedDirectoryId === id) onSelectDirectory(null);
       await fetchDirectories();
       onDirectoriesChange?.();
-    } catch (_e) {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Directories
-        </h2>
+    <div className="flex flex-col gap-3">
+      {/* Header card */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-brand-400" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              Directories
+            </span>
+          </div>
+          <button
+            onClick={() => setIsCreating((v) => !v)}
+            className={`rounded-lg p-1.5 transition-all ${
+              isCreating
+                ? "bg-white/10 text-white"
+                : "text-slate-500 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            {isCreating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+
+        {isCreating && (
+          <form onSubmit={handleCreate} className="mb-3 space-y-2">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Directory name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <button
+              type="submit"
+              disabled={!newName.trim()}
+              className="w-full rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-500 disabled:opacity-40"
+            >
+              Create
+            </button>
+          </form>
+        )}
+
+        {/* All documents */}
         <button
-          onClick={() => setIsCreating((v) => !v)}
-          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          title="New directory"
+          onClick={() => onSelectDirectory(null)}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+            selectedDirectoryId === null
+              ? "bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/40"
+              : "text-slate-400 hover:bg-white/5 hover:text-white"
+          }`}
         >
-          {isCreating ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          <Folder className="h-4 w-4" />
+          <span className="flex-1 text-left">All documents</span>
         </button>
       </div>
 
-      {isCreating && (
-        <form onSubmit={handleCreate} className="mb-3 space-y-2">
-          <input
-            type="text"
-            placeholder="Directory name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            autoFocus
-          />
-          <input
-            type="text"
-            placeholder="Description (optional)"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          />
-          <button
-            type="submit"
-            disabled={!newName.trim()}
-            className="w-full rounded-lg bg-brand-600 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Create
-          </button>
-        </form>
-      )}
-
-      {/* "All documents" option */}
-      <button
-        onClick={() => onSelectDirectory(null)}
-        className={`mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-          selectedDirectoryId === null
-            ? "bg-brand-50 font-medium text-brand-700"
-            : "text-gray-700 hover:bg-gray-50"
-        }`}
-      >
-        <Folder className="h-4 w-4 flex-shrink-0" />
-        <span className="flex-1">All documents</span>
-      </button>
-
+      {/* Directory list */}
       {isLoading ? (
-        <div className="space-y-1 py-1">
+        <div className="space-y-2">
           {[1, 2].map((i) => (
-            <div key={i} className="h-8 animate-pulse rounded-lg bg-gray-100" />
+            <div key={i} className="h-11 animate-pulse rounded-xl bg-white/5" />
           ))}
         </div>
       ) : directories.length === 0 ? (
-        <p className="px-3 py-2 text-xs text-gray-400">No directories yet</p>
+        <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-slate-600">
+          No directories yet.<br />Create one to group your PDFs.
+        </p>
       ) : (
-        <ul className="space-y-0.5">
+        <ul className="space-y-1.5">
           {directories.map((dir) => {
             const isSelected = selectedDirectoryId === dir.id;
+            const isDragOver = dragOverId === dir.id;
             return (
-              <li key={dir.id}>
+              <li
+                key={dir.id}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverId(dir.id); }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null);
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  const docId = e.dataTransfer.getData("docId");
+                  setDragOverId(null);
+                  if (docId) { await assignDocumentToDirectory(docId, dir.id); onDirectoriesChange?.(); }
+                }}
+                className={`group rounded-xl transition-all ${isDragOver ? "ring-2 ring-brand-400/60" : ""}`}
+              >
                 <button
                   onClick={() => onSelectDirectory(dir.id)}
-                  className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    isSelected
-                      ? "bg-brand-50 font-medium text-brand-700"
-                      : "text-gray-700 hover:bg-gray-50"
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                    isDragOver
+                      ? "bg-brand-500/20 text-brand-300"
+                      : isSelected
+                        ? "bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/40"
+                        : isDragging
+                          ? "border border-dashed border-brand-500/30 text-slate-400 hover:bg-brand-500/10 hover:text-brand-300"
+                          : "text-slate-400 hover:bg-white/5 hover:text-white"
                   }`}
                 >
-                  {isSelected ? (
-                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                  ) : (
-                    <Folder className="h-4 w-4 flex-shrink-0" />
-                  )}
-                  <span className="flex-1 truncate">{dir.name}</span>
-                  <span className="text-xs text-gray-400">{dir.document_count}</span>
-                  <button
+                  {isSelected || isDragOver
+                    ? <FolderOpen className="h-4 w-4 text-brand-400" />
+                    : <Folder className="h-4 w-4" />}
+                  <span className="flex-1 truncate text-left">{dir.name}</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    isSelected ? "bg-brand-500/30 text-brand-300" : "bg-white/5 text-slate-500"
+                  }`}>
+                    {dir.document_count}
+                  </span>
+                  <span
+                    role="button"
                     onClick={(e) => handleDelete(dir.id, e)}
-                    className="hidden rounded p-0.5 text-gray-400 transition-colors hover:text-red-500 group-hover:block"
-                    title="Delete directory"
+                    className="hidden rounded p-0.5 text-slate-600 transition-colors hover:text-red-400 group-hover:block"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </span>
                 </button>
               </li>
             );

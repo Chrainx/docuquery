@@ -74,9 +74,9 @@ const iconMap = {
 };
 
 const styleMap = {
-  success: "border-green-200 bg-green-50 text-green-800",
-  error: "border-red-200 bg-red-50 text-red-800",
-  info: "border-blue-200 bg-blue-50 text-blue-800",
+  success: "border-emerald-500/20 bg-slate-900 text-emerald-400 shadow-xl shadow-black/40",
+  error:   "border-red-500/20 bg-slate-900 text-red-400 shadow-xl shadow-black/40",
+  info:    "border-brand-500/20 bg-slate-900 text-brand-400 shadow-xl shadow-black/40",
 };
 
 function ToastItem({
