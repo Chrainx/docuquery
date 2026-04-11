@@ -14,6 +14,7 @@ interface ChatInterfaceProps {
   onSelectDirectory: (id: string | null) => void;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  onClearHistory: () => void;
 }
 
 function SourcePanel({ sources }: { sources: SourceChunk[] }) {
@@ -55,7 +56,7 @@ function SourcePanel({ sources }: { sources: SourceChunk[] }) {
 
 export function ChatInterface({
   documents, directories, selectedDocId, selectedDirectoryId,
-  onSelectDoc, onSelectDirectory, messages, setMessages,
+  onSelectDoc, onSelectDirectory, messages, setMessages, onClearHistory,
 }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +112,7 @@ export function ChatInterface({
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Chat</span>
           </div>
           {messages.length > 0 && (
-            <button onClick={() => setMessages([])} className="flex items-center gap-1 text-xs text-slate-600 transition-colors hover:text-red-400">
+            <button onClick={onClearHistory} className="flex items-center gap-1 text-xs text-slate-600 transition-colors hover:text-red-400">
               <Trash2 className="h-3 w-3" /> Clear
             </button>
           )}

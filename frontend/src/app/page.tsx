@@ -1,20 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ChatMessage, Directory, Document } from "@/types";
+import type { Directory, Document } from "@/types";
 import { listDirectories, listDocuments } from "@/lib/api";
 import { ChatInterface } from "@/components/ChatInterface";
 import DirectoryList from "@/components/DirectoryList";
 import { DocumentList } from "@/components/DocumentList";
 import { UploadZone } from "@/components/UploadZone";
+import { useChatHistory } from "@/lib/useChatHistory";
 
 export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [directories, setDirectories] = useState<Directory[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | undefined>();
   const [selectedDirectoryId, setSelectedDirectoryId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draggingDocId, setDraggingDocId] = useState<string | undefined>();
+
+  const { messages, setMessages, clearHistory } = useChatHistory(selectedDocId, selectedDirectoryId);
 
   const refreshDocuments = useCallback(async () => {
     try { setDocuments(await listDocuments()); } catch { /* ignore */ }
@@ -114,6 +116,7 @@ export default function Home() {
             onSelectDirectory={handleSelectDirectory}
             messages={messages}
             setMessages={setMessages}
+            onClearHistory={clearHistory}
           />
         </div>
       </div>
