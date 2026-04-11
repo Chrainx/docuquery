@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Upload, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2, X } from "lucide-react";
 import { uploadDocument } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 
@@ -10,29 +10,64 @@ interface UploadZoneProps {
   activeDirectoryId?: string;
 }
 
+interface FileUploadState {
+  file: File;
+  status: "pending" | "uploading" | "done" | "error";
+  error?: string;
+}
+
 export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZoneProps) {
   const [open, setOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [queue, setQueue] = useState<FileUploadState[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
+  const isUploading = queue.some((f) => f.status === "uploading" || f.status === "pending");
 
-  const handleFile = useCallback(async (file: File) => {
-    setError(null);
-    if (!file.name.toLowerCase().endsWith(".pdf")) { setError("Please upload a PDF file."); return; }
-    if (file.size > 50 * 1024 * 1024) { setError("File must be under 50 MB."); return; }
-    setIsUploading(true);
-    try {
-      await uploadDocument(file, activeDirectoryId);
-      addToast("success", `"${file.name}" uploaded — processing now.`);
-      onUploadComplete();
-      setOpen(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload failed.";
-      setError(msg); addToast("error", msg);
-    } finally { setIsUploading(false); }
-  }, [onUploadComplete, activeDirectoryId, addToast]);
+  const processQueue = useCallback(async (files: FileUploadState[], directoryId?: string) => {
+    for (let i = 0; i < files.length; i++) {
+      const item = files[i];
+      if (item.status !== "pending") continue;
+
+      setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "uploading" } : f));
+
+      try {
+        await uploadDocument(item.file, directoryId);
+        setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "done" } : f));
+        onUploadComplete();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Upload failed.";
+        setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "error", error: msg } : f));
+        addToast("error", `Failed to upload "${item.file.name}": ${msg}`);
+      }
+    }
+  }, [onUploadComplete, addToast]);
+
+  const handleFiles = useCallback((rawFiles: File[]) => {
+    const valid: FileUploadState[] = [];
+    const invalid: string[] = [];
+
+    for (const file of rawFiles) {
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        invalid.push(`${file.name} (not a PDF)`);
+      } else if (file.size > 50 * 1024 * 1024) {
+        invalid.push(`${file.name} (exceeds 50 MB)`);
+      } else {
+        valid.push({ file, status: "pending" });
+      }
+    }
+
+    if (invalid.length > 0) {
+      addToast("error", `Skipped: ${invalid.join(", ")}`);
+    }
+
+    if (valid.length === 0) return;
+
+    setQueue((prev) => [...prev, ...valid]);
+    processQueue(valid, activeDirectoryId);
+  }, [activeDirectoryId, addToast, processQueue]);
+
+  const clearDone = () => setQueue((prev) => prev.filter((f) => f.status !== "done" && f.status !== "error"));
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
@@ -42,51 +77,72 @@ export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZonePr
         className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-white/5"
       >
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500/20">
-          <Upload className="h-3.5 w-3.5 text-brand-400" />
+          {isUploading
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-400" />
+            : <Upload className="h-3.5 w-3.5 text-brand-400" />}
         </div>
-        <span className="flex-1 text-sm font-medium text-slate-300">Upload PDF</span>
-        {open
-          ? <ChevronUp className="h-4 w-4 text-slate-600" />
-          : <ChevronDown className="h-4 w-4 text-slate-600" />}
+        <span className="flex-1 text-sm font-medium text-slate-300">
+          Upload PDF
+          {isUploading && <span className="ml-2 text-xs text-slate-500">Uploading…</span>}
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 text-slate-600" /> : <ChevronDown className="h-4 w-4 text-slate-600" />}
       </button>
 
-      {/* Expandable drop zone */}
       {open && (
-        <div className="border-t border-white/5 p-3">
+        <div className="border-t border-white/5 p-3 space-y-3">
+          {/* Drop zone */}
           <div
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            onDrop={(e) => {
+              e.preventDefault(); setIsDragging(false);
+              handleFiles(Array.from(e.dataTransfer.files));
+            }}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all ${
-              isDragging
-                ? "border-brand-400 bg-brand-500/10"
-                : "border-white/10 hover:border-brand-500/40 hover:bg-brand-500/5"
-            } ${isUploading ? "pointer-events-none" : ""}`}
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-all ${
+              isDragging ? "border-brand-400 bg-brand-500/10" : "border-white/10 hover:border-brand-500/40 hover:bg-brand-500/5"
+            }`}
           >
-            {isUploading ? (
-              <>
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                <p className="text-xs text-slate-400">Uploading…</p>
-              </>
-            ) : (
-              <>
-                <Upload className={`h-6 w-6 ${isDragging ? "text-brand-400" : "text-slate-600"}`} />
-                <p className={`text-xs font-medium ${isDragging ? "text-brand-300" : "text-slate-400"}`}>
-                  {isDragging ? "Drop to upload" : "Drop a PDF or click to browse"}
-                </p>
-                <p className="text-[10px] text-slate-600">Up to 50 MB</p>
-              </>
-            )}
+            <Upload className={`h-6 w-6 ${isDragging ? "text-brand-400" : "text-slate-600"}`} />
+            <div>
+              <p className={`text-xs font-medium ${isDragging ? "text-brand-300" : "text-slate-400"}`}>
+                {isDragging ? "Drop to upload" : "Drop PDFs or click to browse"}
+              </p>
+              <p className="text-[10px] text-slate-600">Multiple files supported · up to 50 MB each</p>
+            </div>
           </div>
 
-          <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          <input
+            ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden"
+            onChange={(e) => { handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
+          />
 
-          {error && (
-            <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-              {error}
+          {/* Queue */}
+          {queue.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Files</span>
+                {queue.some((f) => f.status === "done" || f.status === "error") && (
+                  <button onClick={clearDone} className="text-[10px] text-slate-600 hover:text-slate-400">Clear done</button>
+                )}
+              </div>
+              {queue.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg bg-white/5 px-2.5 py-2">
+                  {item.status === "uploading" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-400" />}
+                  {item.status === "pending" && <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-600" />}
+                  {item.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />}
+                  {item.status === "error" && <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />}
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-300">{item.file.name}</span>
+                  {item.status === "error" && (
+                    <span className="shrink-0 text-[10px] text-red-400">{item.error}</span>
+                  )}
+                  {(item.status === "done" || item.status === "error") && (
+                    <button onClick={() => setQueue((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-slate-700 hover:text-slate-400">
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
