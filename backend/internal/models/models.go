@@ -16,6 +16,26 @@ const (
 	StatusError      DocumentStatus = "error"
 )
 
+// Directory represents a named group of documents with shared query context.
+type Directory struct {
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description,omitempty"`
+	DocumentCount int       `json:"document_count,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// CreateDirectoryRequest is the request body for creating a directory.
+type CreateDirectoryRequest struct {
+	Name        string `json:"name" binding:"required,min=1,max=100"`
+	Description string `json:"description,omitempty"`
+}
+
+// AssignDirectoryRequest is the request body for assigning a document to a directory.
+type AssignDirectoryRequest struct {
+	DirectoryID *uuid.UUID `json:"directory_id"` // null to unassign
+}
+
 // Document represents an uploaded PDF document.
 type Document struct {
 	ID            uuid.UUID      `json:"id"`
@@ -25,6 +45,7 @@ type Document struct {
 	Status        DocumentStatus `json:"status"`
 	ChunkCount    int            `json:"chunk_count,omitempty"`
 	ErrorMessage  string         `json:"error_message,omitempty"`
+	DirectoryID   *uuid.UUID     `json:"directory_id,omitempty"`
 	CreatedAt     time.Time      `json:"created_at"`
 }
 
@@ -41,9 +62,10 @@ type Chunk struct {
 
 // QueryRequest is the request body for the query endpoint.
 type QueryRequest struct {
-	Question   string     `json:"question" binding:"required,min=3,max=1000"`
-	DocumentID *uuid.UUID `json:"document_id,omitempty"`
-	TopK       int        `json:"top_k,omitempty"`
+	Question    string     `json:"question" binding:"required,min=3,max=1000"`
+	DocumentID  *uuid.UUID `json:"document_id,omitempty"`
+	DirectoryID *uuid.UUID `json:"directory_id,omitempty"`
+	TopK        int        `json:"top_k,omitempty"`
 }
 
 // QueryResponse is the response from the query endpoint.

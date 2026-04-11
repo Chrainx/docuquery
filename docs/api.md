@@ -59,7 +59,9 @@ when processing completes.
 
 ### `GET /documents`
 
-List all documents.
+List all documents. Optionally filter by directory.
+
+**Query params:** `directory_id` (optional UUID) — return only documents in this directory.
 
 **Response** `200 OK`
 ```json
@@ -71,6 +73,7 @@ List all documents.
     "file_size_bytes": 2548736,
     "status": "ready",
     "chunk_count": 87,
+    "directory_id": "661e9511-f30c-52e5-b827-557766551111",
     "created_at": "2024-06-15T10:30:00Z"
   }
 ]
@@ -106,6 +109,97 @@ Delete a document and all its chunks.
 
 ---
 
+### `PATCH /documents/:id`
+
+Assign or unassign a document to a directory.
+
+**Request body**
+```json
+{
+  "directory_id": "661e9511-f30c-52e5-b827-557766551111"
+}
+```
+
+Set `directory_id` to `null` to unassign.
+
+**Response** `200 OK`
+```json
+{
+  "updated": true
+}
+```
+
+---
+
+## Directories
+
+### `POST /directories`
+
+Create a new directory.
+
+**Request body**
+```json
+{
+  "name": "Lecture Notes",
+  "description": "CS3219 semester 2"
+}
+```
+
+**Response** `201 Created`
+```json
+{
+  "id": "661e9511-f30c-52e5-b827-557766551111",
+  "name": "Lecture Notes",
+  "description": "CS3219 semester 2",
+  "document_count": 0,
+  "created_at": "2024-06-15T10:30:00Z"
+}
+```
+
+---
+
+### `GET /directories`
+
+List all directories with their document counts.
+
+**Response** `200 OK`
+```json
+[
+  {
+    "id": "661e9511-f30c-52e5-b827-557766551111",
+    "name": "Lecture Notes",
+    "description": "CS3219 semester 2",
+    "document_count": 5,
+    "created_at": "2024-06-15T10:30:00Z"
+  }
+]
+```
+
+---
+
+### `GET /directories/:id`
+
+Get a single directory.
+
+**Response** `200 OK` — Same shape as list item above.
+
+**Response** `404 Not Found`
+
+---
+
+### `DELETE /directories/:id`
+
+Delete a directory. Documents inside are **not** deleted — they are unassigned (their `directory_id` is set to null).
+
+**Response** `200 OK`
+```json
+{
+  "deleted": true
+}
+```
+
+---
+
 ## Query
 
 ### `POST /query`
@@ -124,8 +218,11 @@ Ask a question and get an answer with citations (non-streaming).
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `question` | string | Yes | — | The question (3-1000 chars) |
-| `document_id` | UUID | No | all docs | Restrict search to one document |
+| `document_id` | UUID | No | — | Restrict search to one document |
+| `directory_id` | UUID | No | — | Restrict search to all docs in a directory (shared context) |
 | `top_k` | int | No | 5 | Number of chunks to retrieve (max 20) |
+
+If both `document_id` and `directory_id` are omitted, all documents are searched. If `document_id` is set it takes precedence over `directory_id`.
 
 **Response** `200 OK`
 ```json

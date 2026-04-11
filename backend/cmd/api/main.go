@@ -99,6 +99,12 @@ func main() {
 		api.GET("/documents", h.ListDocuments)
 		api.GET("/documents/:id", h.GetDocument)
 		api.DELETE("/documents/:id", h.DeleteDocument)
+		api.PATCH("/documents/:id", h.AssignDirectory)
+
+		api.POST("/directories", h.CreateDirectory)
+		api.GET("/directories", h.ListDirectories)
+		api.GET("/directories/:id", h.GetDirectory)
+		api.DELETE("/directories/:id", h.DeleteDirectory)
 
 		api.POST("/query", h.Query)
 		api.POST("/query/stream", h.QueryStream)

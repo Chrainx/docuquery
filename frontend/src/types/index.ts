@@ -4,6 +4,14 @@
 
 export type DocumentStatus = "processing" | "ready" | "error";
 
+export interface Directory {
+  id: string;
+  name: string;
+  description?: string;
+  document_count: number;
+  created_at: string;
+}
+
 export interface Document {
   id: string;
   filename: string;
@@ -12,6 +20,7 @@ export interface Document {
   status: DocumentStatus;
   chunk_count: number;
   error_message?: string;
+  directory_id?: string;
   created_at: string;
 }
 
@@ -35,3 +44,6 @@ export interface ChatMessage {
   sources?: SourceChunk[];
   timestamp: Date;
 }
+
+// Context modes for querying
+export type QueryContextMode = "all" | "document" | "directory";

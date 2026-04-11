@@ -84,12 +84,23 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		return
 	}
 
+	// Optional: assign to a directory on upload.
+	var directoryID *uuid.UUID
+	if dirIDStr := c.Request.FormValue("directory_id"); dirIDStr != "" {
+		parsed, err := uuid.Parse(dirIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid directory_id"})
+			return
+		}
+		directoryID = &parsed
+	}
+
 	// Create document record.
 	docID := uuid.New()
 	_, err = h.db.Exec(c.Request.Context(),
-		`INSERT INTO documents (id, filename, page_count, file_size_bytes, status)
-		 VALUES ($1, $2, 0, $3, $4)`,
-		docID, header.Filename, header.Size, models.StatusProcessing,
+		`INSERT INTO documents (id, filename, page_count, file_size_bytes, status, directory_id)
+		 VALUES ($1, $2, 0, $3, $4, $5)`,
+		docID, header.Filename, header.Size, models.StatusProcessing, directoryID,
 	)
 	if err != nil {
 		h.logger.Error("failed to insert document", "error", err)
@@ -99,9 +110,10 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 
 	// Return immediately with 202 — process in background.
 	c.JSON(http.StatusAccepted, gin.H{
-		"id":       docID,
-		"filename": header.Filename,
-		"status":   models.StatusProcessing,
+		"id":           docID,
+		"filename":     header.Filename,
+		"status":       models.StatusProcessing,
+		"directory_id": directoryID,
 	})
 
 	// Process asynchronously.
@@ -173,17 +185,27 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 	log.Info("document processed successfully", "chunks", len(parsed.Chunks))
 }
 
-// ListDocuments returns all documents.
+// ListDocuments returns all documents, optionally filtered by directory.
 func (h *Handler) ListDocuments(c *gin.Context) {
-	rows, err := h.db.Query(c.Request.Context(),
-		`SELECT d.id, d.filename, d.page_count, d.file_size_bytes, d.status, d.created_at,
-		        COALESCE(d.error_message, ''),
-		        COUNT(c.id) as chunk_count
-		 FROM documents d
-		 LEFT JOIN chunks c ON c.document_id = d.id
-		 GROUP BY d.id
-		 ORDER BY d.created_at DESC`,
-	)
+	var args []interface{}
+	query := `SELECT d.id, d.filename, d.page_count, d.file_size_bytes, d.status, d.created_at,
+			         COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
+			  FROM documents d
+			  LEFT JOIN chunks c ON c.document_id = d.id`
+
+	if dirIDStr := c.Query("directory_id"); dirIDStr != "" {
+		dirID, err := uuid.Parse(dirIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid directory_id"})
+			return
+		}
+		query += ` WHERE d.directory_id = $1`
+		args = append(args, dirID)
+	}
+
+	query += ` GROUP BY d.id ORDER BY d.created_at DESC`
+
+	rows, err := h.db.Query(c.Request.Context(), query, args...)
 	if err != nil {
 		h.logger.Error("failed to query documents", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list documents"})
@@ -195,7 +217,7 @@ func (h *Handler) ListDocuments(c *gin.Context) {
 	for rows.Next() {
 		var doc models.Document
 		err := rows.Scan(&doc.ID, &doc.Filename, &doc.PageCount, &doc.FileSizeBytes,
-			&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount)
+			&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount, &doc.DirectoryID)
 		if err != nil {
 			h.logger.Error("failed to scan document row", "error", err)
 			continue
@@ -217,15 +239,14 @@ func (h *Handler) GetDocument(c *gin.Context) {
 	var doc models.Document
 	err = h.db.QueryRow(c.Request.Context(),
 		`SELECT d.id, d.filename, d.page_count, d.file_size_bytes, d.status, d.created_at,
-		        COALESCE(d.error_message, ''),
-		        COUNT(c.id) as chunk_count
+		        COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
 		 FROM documents d
 		 LEFT JOIN chunks c ON c.document_id = d.id
 		 WHERE d.id = $1
 		 GROUP BY d.id`,
 		id,
 	).Scan(&doc.ID, &doc.Filename, &doc.PageCount, &doc.FileSizeBytes,
-		&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount)
+		&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount, &doc.DirectoryID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
 		return
@@ -256,6 +277,142 @@ func (h *Handler) DeleteDocument(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 
+// AssignDirectory assigns or unassigns a document to a directory.
+func (h *Handler) AssignDirectory(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid document ID"})
+		return
+	}
+
+	var req models.AssignDirectoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.db.Exec(c.Request.Context(),
+		`UPDATE documents SET directory_id = $1 WHERE id = $2`,
+		req.DirectoryID, id,
+	)
+	if err != nil {
+		h.logger.Error("failed to assign directory", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign directory"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"updated": true})
+}
+
+// CreateDirectory creates a new directory.
+func (h *Handler) CreateDirectory(c *gin.Context) {
+	var req models.CreateDirectoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	dir := models.Directory{
+		ID:          uuid.New(),
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	_, err := h.db.Exec(c.Request.Context(),
+		`INSERT INTO directories (id, name, description) VALUES ($1, $2, $3)`,
+		dir.ID, dir.Name, dir.Description,
+	)
+	if err != nil {
+		h.logger.Error("failed to create directory", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create directory"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, dir)
+}
+
+// ListDirectories returns all directories with document counts.
+func (h *Handler) ListDirectories(c *gin.Context) {
+	rows, err := h.db.Query(c.Request.Context(),
+		`SELECT d.id, d.name, COALESCE(d.description, ''), d.created_at,
+		        COUNT(doc.id) as document_count
+		 FROM directories d
+		 LEFT JOIN documents doc ON doc.directory_id = d.id
+		 GROUP BY d.id
+		 ORDER BY d.created_at DESC`,
+	)
+	if err != nil {
+		h.logger.Error("failed to query directories", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list directories"})
+		return
+	}
+	defer rows.Close()
+
+	dirs := []models.Directory{}
+	for rows.Next() {
+		var dir models.Directory
+		if err := rows.Scan(&dir.ID, &dir.Name, &dir.Description, &dir.CreatedAt, &dir.DocumentCount); err != nil {
+			h.logger.Error("failed to scan directory row", "error", err)
+			continue
+		}
+		dirs = append(dirs, dir)
+	}
+
+	c.JSON(http.StatusOK, dirs)
+}
+
+// GetDirectory returns a single directory with its documents.
+func (h *Handler) GetDirectory(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid directory ID"})
+		return
+	}
+
+	var dir models.Directory
+	err = h.db.QueryRow(c.Request.Context(),
+		`SELECT d.id, d.name, COALESCE(d.description, ''), d.created_at,
+		        COUNT(doc.id) as document_count
+		 FROM directories d
+		 LEFT JOIN documents doc ON doc.directory_id = d.id
+		 WHERE d.id = $1
+		 GROUP BY d.id`,
+		id,
+	).Scan(&dir.ID, &dir.Name, &dir.Description, &dir.CreatedAt, &dir.DocumentCount)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "directory not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dir)
+}
+
+// DeleteDirectory removes a directory. Documents in it are unassigned, not deleted.
+func (h *Handler) DeleteDirectory(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid directory ID"})
+		return
+	}
+
+	result, err := h.db.Exec(c.Request.Context(), `DELETE FROM directories WHERE id = $1`, id)
+	if err != nil {
+		h.logger.Error("failed to delete directory", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete directory"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "directory not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
+
 // Query handles the RAG query: embed question → vector search → LLM generate.
 func (h *Handler) Query(c *gin.Context) {
 	var req models.QueryRequest
@@ -279,7 +436,7 @@ func (h *Handler) Query(c *gin.Context) {
 	queryVector := pgvectorString(embedResp.Embeddings[0])
 
 	// 2. Vector search.
-	sources, err := h.vectorSearch(c.Request.Context(), queryVector, req.DocumentID, req.TopK)
+	sources, err := h.vectorSearch(c.Request.Context(), queryVector, req.DocumentID, req.DirectoryID, req.TopK)
 	if err != nil {
 		h.logger.Error("vector search failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
@@ -311,8 +468,6 @@ func (h *Handler) Query(c *gin.Context) {
 }
 
 // QueryStream handles the RAG query with Server-Sent Events streaming.
-// The client receives tokens as they are generated by the LLM, then a final
-// event with the source citations.
 func (h *Handler) QueryStream(c *gin.Context) {
 	var req models.QueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -335,7 +490,7 @@ func (h *Handler) QueryStream(c *gin.Context) {
 	queryVector := pgvectorString(embedResp.Embeddings[0])
 
 	// 2. Vector search.
-	sources, err := h.vectorSearch(c.Request.Context(), queryVector, req.DocumentID, req.TopK)
+	sources, err := h.vectorSearch(c.Request.Context(), queryVector, req.DocumentID, req.DirectoryID, req.TopK)
 	if err != nil {
 		h.logger.Error("vector search failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "search failed"})
@@ -360,7 +515,6 @@ func (h *Handler) QueryStream(c *gin.Context) {
 	prompt := services.BuildPrompt(req.Question, sources)
 
 	err = h.ollamaClient.GenerateStream(c.Request.Context(), prompt, func(token string) error {
-		// Send each token as an SSE "token" event.
 		fmt.Fprintf(c.Writer, "event: token\ndata: %s\n\n", jsonEscape(token))
 		c.Writer.Flush()
 		return nil
@@ -373,19 +527,19 @@ func (h *Handler) QueryStream(c *gin.Context) {
 		return
 	}
 
-	// Send sources as the final event.
 	sourcesJSON, _ := json.Marshal(sources)
 	fmt.Fprintf(c.Writer, "event: sources\ndata: %s\n\n", string(sourcesJSON))
 	fmt.Fprintf(c.Writer, "event: done\ndata: {}\n\n")
 	c.Writer.Flush()
 }
 
-// vectorSearch extracts the common vector search logic used by both Query and QueryStream.
-func (h *Handler) vectorSearch(ctx context.Context, queryVector string, documentID *uuid.UUID, topK int) ([]models.SourceChunk, error) {
+// vectorSearch runs cosine similarity search, optionally scoped to a document or directory.
+func (h *Handler) vectorSearch(ctx context.Context, queryVector string, documentID *uuid.UUID, directoryID *uuid.UUID, topK int) ([]models.SourceChunk, error) {
 	var query string
 	var args []interface{}
 
-	if documentID != nil {
+	switch {
+	case documentID != nil:
 		query = `SELECT c.content, c.page_numbers, 1 - (c.embedding <=> $1::vector) as similarity,
 		                d.id, d.filename
 		         FROM chunks c
@@ -394,7 +548,16 @@ func (h *Handler) vectorSearch(ctx context.Context, queryVector string, document
 		         ORDER BY c.embedding <=> $1::vector
 		         LIMIT $3`
 		args = []interface{}{queryVector, *documentID, topK}
-	} else {
+	case directoryID != nil:
+		query = `SELECT c.content, c.page_numbers, 1 - (c.embedding <=> $1::vector) as similarity,
+		                d.id, d.filename
+		         FROM chunks c
+		         JOIN documents d ON d.id = c.document_id
+		         WHERE d.directory_id = $2 AND d.status = 'ready'
+		         ORDER BY c.embedding <=> $1::vector
+		         LIMIT $3`
+		args = []interface{}{queryVector, *directoryID, topK}
+	default:
 		query = `SELECT c.content, c.page_numbers, 1 - (c.embedding <=> $1::vector) as similarity,
 		                d.id, d.filename
 		         FROM chunks c

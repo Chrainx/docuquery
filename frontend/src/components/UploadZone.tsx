@@ -7,9 +7,10 @@ import { useToast } from "@/components/Toast";
 
 interface UploadZoneProps {
   onUploadComplete: () => void;
+  activeDirectoryId?: string;
 }
 
-export function UploadZone({ onUploadComplete }: UploadZoneProps) {
+export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
 
       setIsUploading(true);
       try {
-        await uploadDocument(file);
+        await uploadDocument(file, activeDirectoryId);
         addToast("success", `"${file.name}" uploaded — processing now.`);
         onUploadComplete();
       } catch (err) {
@@ -43,7 +44,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         setIsUploading(false);
       }
     },
-    [onUploadComplete],
+    [onUploadComplete, activeDirectoryId],
   );
 
   const handleDrop = useCallback(

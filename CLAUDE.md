@@ -56,6 +56,7 @@ docuquery/
 │   │   │   ├── Toast.tsx         # Toast notification system
 │   │   │   ├── ErrorBoundary.tsx # React error boundary
 │   │   │   ├── Skeleton.tsx      # Loading skeleton components
+│   │   │   ├── DirectoryList.tsx # Directory sidebar (create, select, delete directories)
 │   │   │   └── Providers.tsx     # Client-side provider wrapper
 │   │   ├── lib/
 │   │   │   └── api.ts           # Typed API client (fetch + SSE streaming)
@@ -77,7 +78,7 @@ docuquery/
 │   │   │   ├── config.go        # Env var loading
 │   │   │   └── config_test.go
 │   │   ├── handlers/
-│   │   │   ├── handlers.go      # All HTTP handlers (upload, list, delete, query, query/stream)
+│   │   │   ├── handlers.go      # All HTTP handlers (upload, list, delete, assign, directories, query, query/stream)
 │   │   │   └── handlers_test.go
 │   │   ├── middleware/
 │   │   │   └── middleware.go    # CORS + request logging
@@ -147,6 +148,11 @@ docuquery/
 | GET | /api/v1/documents | List all documents |
 | GET | /api/v1/documents/:id | Get single document |
 | DELETE | /api/v1/documents/:id | Delete document + chunks |
+| PATCH | /api/v1/documents/:id | Assign/unassign document to a directory |
+| POST | /api/v1/directories | Create a directory |
+| GET | /api/v1/directories | List directories with document counts |
+| GET | /api/v1/directories/:id | Get single directory |
+| DELETE | /api/v1/directories/:id | Delete directory (documents unassigned, not deleted) |
 | POST | /api/v1/query | Ask question → JSON response with answer + sources |
 | POST | /api/v1/query/stream | Ask question → SSE stream (event: token/sources/done/error) |
 
