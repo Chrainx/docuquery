@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, ChevronUp, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronUp, Copy, Download, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
 import { queryDocumentStream } from "@/lib/api";
 import type { ChatMessage, Directory, Document, SourceChunk } from "@/types";
 
@@ -52,6 +52,49 @@ function SourcePanel({ sources }: { sources: SourceChunk[] }) {
       )}
     </div>
   );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={copy} className="rounded p-1 text-slate-600 transition-colors hover:text-slate-400" title="Copy">
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+function exportChat(messages: ChatMessage[], contextLabel: string) {
+  const lines = [
+    `# DocuQuery Chat — ${contextLabel}`,
+    `_Exported ${new Date().toLocaleString()}_`,
+    "",
+  ];
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      lines.push(`**You:** ${msg.content}`, "");
+    } else {
+      lines.push(`**Assistant:** ${msg.content}`);
+      if (msg.sources?.length) {
+        lines.push("", "_Sources:_");
+        for (const src of msg.sources) {
+          lines.push(`- ${src.filename} p.${src.page_numbers.join(",")} (${(src.similarity_score * 100).toFixed(0)}% match)`);
+        }
+      }
+      lines.push("");
+    }
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `docuquery-chat-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function ChatInterface({
@@ -112,9 +155,18 @@ export function ChatInterface({
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Chat</span>
           </div>
           {messages.length > 0 && (
-            <button onClick={onClearHistory} className="flex items-center gap-1 text-xs text-slate-600 transition-colors hover:text-red-400">
-              <Trash2 className="h-3 w-3" /> Clear
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportChat(messages, contextLabel)}
+                className="flex items-center gap-1 text-xs text-slate-600 transition-colors hover:text-slate-300"
+                title="Export chat as markdown"
+              >
+                <Download className="h-3 w-3" /> Export
+              </button>
+              <button onClick={onClearHistory} className="flex items-center gap-1 text-xs text-slate-600 transition-colors hover:text-red-400">
+                <Trash2 className="h-3 w-3" /> Clear
+              </button>
+            </div>
           )}
         </div>
 
@@ -188,6 +240,11 @@ export function ChatInterface({
                 ? "bg-brand-600 text-white"
                 : "bg-white/5 text-slate-200 ring-1 ring-white/10"
             }`}>
+              {msg.role === "assistant" && msg.content && (
+                <div className="mb-1 flex justify-end">
+                  <CopyButton text={msg.content} />
+                </div>
+              )}
               {msg.content ? (
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
               ) : (
