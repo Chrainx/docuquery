@@ -121,12 +121,19 @@ export function ChatInterface({
     setInput("");
     setIsLoading(true);
 
+    // Build history from the last 6 completed messages (exclude the new empty assistant placeholder)
+    const history = messages
+      .filter((m) => m.content)
+      .slice(-6)
+      .map((m) => ({ role: m.role, content: m.content }));
+
     try {
       await queryDocumentStream(
         question, selectedDocId, selectedDirectoryId, 5,
         (token) => setMessages((p) => p.map((m) => m.id === aId ? { ...m, content: m.content + token } : m)),
         (sources) => setMessages((p) => p.map((m) => m.id === aId ? { ...m, sources } : m)),
         (err) => setMessages((p) => p.map((m) => m.id === aId ? { ...m, content: `Error: ${err}` } : m)),
+        history,
       );
     } catch (err) {
       setMessages((p) => p.map((m) => m.id === aId ? {

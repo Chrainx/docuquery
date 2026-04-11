@@ -65,7 +65,7 @@ func TestBuildPrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prompt := BuildPrompt(tt.question, tt.sources)
+			prompt := BuildPrompt(tt.question, tt.sources, nil)
 
 			for _, want := range tt.wantIn {
 				if !strings.Contains(prompt, want) {
@@ -76,8 +76,27 @@ func TestBuildPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildPrompt_WithHistory(t *testing.T) {
+	history := []models.HistoryMessage{
+		{Role: "user", Content: "What is this document about?"},
+		{Role: "assistant", Content: "It is about machine learning."},
+	}
+	prompt := BuildPrompt("Can you elaborate?", []models.SourceChunk{
+		{Content: "ML is a field of AI.", PageNumbers: []int{1}},
+	}, history)
+	if !strings.Contains(prompt, "What is this document about?") {
+		t.Error("prompt should contain history user message")
+	}
+	if !strings.Contains(prompt, "It is about machine learning.") {
+		t.Error("prompt should contain history assistant message")
+	}
+	if !strings.Contains(prompt, "Can you elaborate?") {
+		t.Error("prompt should contain the current question")
+	}
+}
+
 func TestBuildPrompt_EmptySources(t *testing.T) {
-	prompt := BuildPrompt("test question", nil)
+	prompt := BuildPrompt("test question", nil, nil)
 	if !strings.Contains(prompt, "test question") {
 		t.Error("prompt should contain the question even with no sources")
 	}

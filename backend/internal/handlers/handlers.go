@@ -485,7 +485,7 @@ func (h *Handler) Query(c *gin.Context) {
 	}
 
 	// 3. Build prompt and generate answer.
-	prompt := services.BuildPrompt(req.Question, sources)
+	prompt := services.BuildPrompt(req.Question, sources, req.History)
 
 	answer, err := h.ollamaClient.Generate(c.Request.Context(), prompt)
 	if err != nil {
@@ -545,7 +545,7 @@ func (h *Handler) QueryStream(c *gin.Context) {
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	prompt := services.BuildPrompt(req.Question, sources)
+	prompt := services.BuildPrompt(req.Question, sources, req.History)
 
 	err = h.ollamaClient.GenerateStream(c.Request.Context(), prompt, func(token string) error {
 		fmt.Fprintf(c.Writer, "event: token\ndata: %s\n\n", jsonEscape(token))

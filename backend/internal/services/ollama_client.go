@@ -45,8 +45,8 @@ type ollamaStreamChunk struct {
 	Done     bool   `json:"done"`
 }
 
-// BuildPrompt constructs the RAG prompt from retrieved chunks and the user question.
-func BuildPrompt(question string, sources []models.SourceChunk) string {
+// BuildPrompt constructs the RAG prompt from retrieved chunks, conversation history, and the user question.
+func BuildPrompt(question string, sources []models.SourceChunk, history []models.HistoryMessage) string {
 	var sb strings.Builder
 
 	sb.WriteString(`You are a helpful assistant that answers questions based ONLY on the provided context.
@@ -65,6 +65,19 @@ Context:
 			pages[i] = fmt.Sprintf("%d", p)
 		}
 		sb.WriteString(fmt.Sprintf("[Page %s] %s\n\n", strings.Join(pages, ", "), src.Content))
+	}
+
+	if len(history) > 0 {
+		sb.WriteString("\nConversation so far:\n")
+		for _, msg := range history {
+			switch msg.Role {
+			case "user":
+				sb.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+			case "assistant":
+				sb.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+			}
+		}
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString(fmt.Sprintf("Question: %s\n\nAnswer:", question))

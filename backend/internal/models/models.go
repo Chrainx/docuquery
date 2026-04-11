@@ -66,12 +66,19 @@ type Chunk struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// HistoryMessage is a single turn in the conversation history.
+type HistoryMessage struct {
+	Role    string `json:"role"`    // "user" or "assistant"
+	Content string `json:"content"`
+}
+
 // QueryRequest is the request body for the query endpoint.
 type QueryRequest struct {
-	Question    string     `json:"question" binding:"required,min=3,max=1000"`
-	DocumentID  *uuid.UUID `json:"document_id,omitempty"`
-	DirectoryID *uuid.UUID `json:"directory_id,omitempty"`
-	TopK        int        `json:"top_k,omitempty"`
+	Question    string           `json:"question" binding:"required,min=3,max=1000"`
+	DocumentID  *uuid.UUID       `json:"document_id,omitempty"`
+	DirectoryID *uuid.UUID       `json:"directory_id,omitempty"`
+	TopK        int              `json:"top_k,omitempty"`
+	History     []HistoryMessage `json:"history,omitempty"`
 }
 
 // QueryResponse is the response from the query endpoint.

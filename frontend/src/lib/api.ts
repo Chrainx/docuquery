@@ -144,6 +144,7 @@ export async function queryDocumentStream(
   onToken: (token: string) => void,
   onSources: (sources: SourceChunk[]) => void,
   onError: (error: string) => void,
+  history?: Array<{ role: string; content: string }>,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/query/stream`, {
     method: "POST",
@@ -153,6 +154,7 @@ export async function queryDocumentStream(
       document_id: documentId || undefined,
       directory_id: directoryId || undefined,
       top_k: topK,
+      history: history ?? [],
     }),
   });
 
