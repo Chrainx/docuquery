@@ -56,6 +56,18 @@ export async function deleteDirectory(id: string): Promise<void> {
   await request(`/directories/${id}`, { method: "DELETE" });
 }
 
+export async function updateDirectory(
+  id: string,
+  name: string,
+  description?: string,
+): Promise<void> {
+  await request(`/directories/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description: description ?? "" }),
+  });
+}
+
 export async function assignDocumentToDirectory(
   documentId: string,
   directoryId: string | null,

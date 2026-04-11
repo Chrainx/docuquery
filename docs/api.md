@@ -191,6 +191,27 @@ Get a single directory.
 
 ---
 
+### `PATCH /directories/:id`
+
+Rename or update the description of a directory.
+
+**Request body**
+```json
+{
+  "name": "New Name",
+  "description": "Updated description"
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "updated": true
+}
+```
+
+---
+
 ### `DELETE /directories/:id`
 
 Delete a directory. Documents inside are **not** deleted — they are unassigned (their `directory_id` is set to null).

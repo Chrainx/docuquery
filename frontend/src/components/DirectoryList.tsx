@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Folder, FolderOpen, Layers, Plus, Trash2, X } from "lucide-react";
-import { assignDocumentToDirectory, createDirectory, deleteDirectory, listDirectories } from "@/lib/api";
+import { Check, Folder, FolderOpen, Layers, Pencil, Plus, Trash2, X } from "lucide-react";
+import { assignDocumentToDirectory, createDirectory, deleteDirectory, listDirectories, updateDirectory } from "@/lib/api";
 import type { Directory } from "@/types";
 
 interface DirectoryListProps {
@@ -24,6 +24,8 @@ export default function DirectoryList({
   const [newDescription, setNewDescription] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
   const fetchDirectories = async () => {
     try {
@@ -48,6 +50,23 @@ export default function DirectoryList({
       await fetchDirectories();
       onDirectoriesChange?.();
     } catch { /* ignore */ }
+  };
+
+  const startEdit = (dir: Directory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(dir.id);
+    setEditName(dir.name);
+  };
+
+  const commitEdit = async (dir: Directory) => {
+    const name = editName.trim();
+    if (!name || name === dir.name) { setEditingId(null); return; }
+    try {
+      await updateDirectory(dir.id, name, dir.description);
+      await fetchDirectories();
+      onDirectoriesChange?.();
+    } catch { /* ignore */ }
+    setEditingId(null);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -169,18 +188,45 @@ export default function DirectoryList({
                   }`}
                 >
                   {isSelected || isDragOver
-                    ? <FolderOpen className="h-4 w-4 text-brand-400" />
-                    : <Folder className="h-4 w-4" />}
-                  <span className="flex-1 truncate text-left">{dir.name}</span>
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    ? <FolderOpen className="h-4 w-4 text-brand-400 shrink-0" />
+                    : <Folder className="h-4 w-4 shrink-0" />}
+
+                  {editingId === dir.id ? (
+                    /* Inline edit mode */
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitEdit(dir);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onBlur={() => commitEdit(dir)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 rounded bg-white/10 px-1 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    />
+                  ) : (
+                    <span className="flex-1 truncate text-left">{dir.name}</span>
+                  )}
+
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                     isSelected ? "bg-brand-500/30 text-brand-300" : "bg-white/5 text-slate-500"
                   }`}>
                     {dir.document_count}
                   </span>
                   <span
                     role="button"
+                    onClick={(e) => startEdit(dir, e)}
+                    className="hidden rounded p-0.5 text-slate-600 transition-colors hover:text-slate-300 group-hover:block"
+                    title="Rename"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </span>
+                  <span
+                    role="button"
                     onClick={(e) => handleDelete(dir.id, e)}
                     className="hidden rounded p-0.5 text-slate-600 transition-colors hover:text-red-400 group-hover:block"
+                    title="Delete"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </span>

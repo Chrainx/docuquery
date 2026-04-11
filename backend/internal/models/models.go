@@ -36,6 +36,12 @@ type AssignDirectoryRequest struct {
 	DirectoryID *uuid.UUID `json:"directory_id"` // null to unassign
 }
 
+// UpdateDirectoryRequest is the request body for renaming/updating a directory.
+type UpdateDirectoryRequest struct {
+	Name        string `json:"name" binding:"required,min=1,max=100"`
+	Description string `json:"description,omitempty"`
+}
+
 // Document represents an uploaded PDF document.
 type Document struct {
 	ID            uuid.UUID      `json:"id"`

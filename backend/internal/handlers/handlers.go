@@ -393,6 +393,37 @@ func (h *Handler) GetDirectory(c *gin.Context) {
 	c.JSON(http.StatusOK, dir)
 }
 
+// UpdateDirectory renames or updates the description of a directory.
+func (h *Handler) UpdateDirectory(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid directory ID"})
+		return
+	}
+
+	var req models.UpdateDirectoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.db.Exec(c.Request.Context(),
+		`UPDATE directories SET name = $1, description = $2 WHERE id = $3`,
+		req.Name, req.Description, id,
+	)
+	if err != nil {
+		h.logger.Error("failed to update directory", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update directory"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "directory not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"updated": true})
+}
+
 // DeleteDirectory removes a directory. Documents in it are unassigned, not deleted.
 func (h *Handler) DeleteDirectory(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

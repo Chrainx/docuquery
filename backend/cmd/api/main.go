@@ -104,6 +104,7 @@ func main() {
 		api.POST("/directories", h.CreateDirectory)
 		api.GET("/directories", h.ListDirectories)
 		api.GET("/directories/:id", h.GetDirectory)
+		api.PATCH("/directories/:id", h.UpdateDirectory)
 		api.DELETE("/directories/:id", h.DeleteDirectory)
 
 		api.POST("/query", h.Query)
