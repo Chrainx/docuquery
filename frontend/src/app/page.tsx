@@ -47,9 +47,6 @@ export default function Home() {
     setAuthReady(true);
   };
 
-  if (needsLogin) return <LoginGate onAuthenticated={handleAuthenticated} />;
-  if (!authReady) return null; // brief flash while checking
-
   const { messages, setMessages, clearHistory } = useChatHistory(selectedDocId, selectedDirectoryId);
 
   const refreshDocuments = useCallback(async () => {
@@ -64,14 +61,15 @@ export default function Home() {
     await Promise.all([refreshDocuments(), refreshDirectories()]);
   }, [refreshDocuments, refreshDirectories]);
 
-  useEffect(() => { refreshAll(); }, [refreshAll]);
+  useEffect(() => { if (authReady) refreshAll(); }, [authReady, refreshAll]);
 
   useEffect(() => {
+    if (!authReady) return;
     const hasProcessing = documents.some((d) => d.status === "processing");
     if (!hasProcessing) return;
     const interval = setInterval(refreshDocuments, 3000);
     return () => clearInterval(interval);
-  }, [documents, refreshDocuments]);
+  }, [authReady, documents, refreshDocuments]);
 
   const visibleDocuments = selectedDirectoryId
     ? documents.filter((d) => d.directory_id === selectedDirectoryId)
@@ -83,6 +81,9 @@ export default function Home() {
     setSelectedDirectoryId(id);
     setSelectedDocId(undefined);
   };
+
+  if (needsLogin) return <LoginGate onAuthenticated={handleAuthenticated} />;
+  if (!authReady) return null;
 
   return (
     /* Full viewport minus the 56px header, no page-level scroll */
