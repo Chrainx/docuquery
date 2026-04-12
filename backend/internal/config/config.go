@@ -21,6 +21,9 @@ type Config struct {
 	OllamaURL           string
 	OllamaModel         string
 
+	// Storage
+	UploadsDir string
+
 	// Limits
 	MaxUploadSizeMB int
 
@@ -37,6 +40,7 @@ func Load() (*Config, error) {
 		EmbeddingServiceURL: getEnv("EMBEDDING_SERVICE_URL", "http://localhost:8001"),
 		OllamaURL:           getEnv("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:         getEnv("OLLAMA_MODEL", "llama3.1:8b"),
+		UploadsDir:          getEnv("UPLOADS_DIR", "./uploads"),
 		MaxUploadSizeMB:     getEnvInt("MAX_UPLOAD_SIZE_MB", 50),
 		LogLevel:            getEnv("LOG_LEVEL", "debug"),
 	}

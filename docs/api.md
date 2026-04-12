@@ -100,6 +100,23 @@ Get a single document by ID.
 
 ---
 
+### `GET /documents/:id/file`
+
+Stream the original PDF for a document (for in-browser viewing).
+
+**Response:** `application/pdf` (inline)
+
+Use with a `#page=N` fragment to jump to a specific page:
+
+```
+GET /api/v1/documents/550e8400.../file#page=7
+```
+
+**Error Responses:**
+- `404` — PDF not found on disk (document uploaded before this feature was added)
+
+---
+
 ### `GET /documents/:id/progress`
 
 Stream processing progress events via SSE. Connect immediately after upload while status is `processing`.
@@ -258,6 +275,24 @@ Delete a directory. Documents inside are **not** deleted — they are unassigned
   "deleted": true
 }
 ```
+
+---
+
+## Models
+
+### `GET /models`
+
+List models available on the local Ollama server. Used to populate the model selector in the UI.
+
+**Response** `200 OK`
+```json
+[
+  {"name": "llama3.2:1b"},
+  {"name": "llama3.1:8b"}
+]
+```
+
+**Response** `503 Service Unavailable` — Ollama is not running.
 
 ---
 

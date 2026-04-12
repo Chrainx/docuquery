@@ -81,7 +81,7 @@ func main() {
 	ollamaClient := services.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel)
 
 	// Initialize handlers.
-	h := handlers.NewHandler(pool, embeddingClient, ollamaClient, cfg.MaxUploadSizeMB, logger)
+	h := handlers.NewHandler(pool, embeddingClient, ollamaClient, cfg.MaxUploadSizeMB, cfg.UploadsDir, logger)
 
 	// Set up Gin router.
 	gin.SetMode(gin.ReleaseMode)
@@ -98,6 +98,7 @@ func main() {
 		api.POST("/documents", h.UploadDocument)
 		api.GET("/documents", h.ListDocuments)
 		api.GET("/documents/:id", h.GetDocument)
+		api.GET("/documents/:id/file", h.ServeDocumentFile)
 		api.GET("/documents/:id/progress", h.DocumentProgress)
 		api.DELETE("/documents/:id", h.DeleteDocument)
 		api.PATCH("/documents/:id", h.UpdateDocument)

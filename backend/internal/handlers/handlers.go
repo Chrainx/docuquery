@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -23,6 +25,7 @@ type Handler struct {
 	embeddingClient *services.EmbeddingClient
 	ollamaClient    *services.OllamaClient
 	maxUploadBytes  int64
+	uploadsDir      string
 	logger          *slog.Logger
 	progress        *ProgressBroker
 }
@@ -33,6 +36,7 @@ func NewHandler(
 	embeddingClient *services.EmbeddingClient,
 	ollamaClient *services.OllamaClient,
 	maxUploadMB int,
+	uploadsDir string,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
@@ -40,6 +44,7 @@ func NewHandler(
 		embeddingClient: embeddingClient,
 		ollamaClient:    ollamaClient,
 		maxUploadBytes:  int64(maxUploadMB) * 1024 * 1024,
+		uploadsDir:      uploadsDir,
 		logger:          logger,
 		progress:        newProgressBroker(),
 	}
@@ -108,6 +113,12 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		h.logger.Error("failed to insert document", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create document"})
 		return
+	}
+
+	// Persist PDF to disk for later viewing.
+	if err := h.savePDF(docID, pdfData); err != nil {
+		h.logger.Warn("failed to save PDF to disk", "error", err)
+		// Non-fatal — viewing will be unavailable but RAG still works.
 	}
 
 	// Return immediately with 202 — process in background.
@@ -289,6 +300,9 @@ func (h *Handler) DeleteDocument(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
 		return
 	}
+
+	// Remove PDF from disk (best-effort).
+	_ = os.Remove(h.pdfPath(id))
 
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
@@ -642,6 +656,38 @@ func (h *Handler) vectorSearch(ctx context.Context, queryVector string, document
 func jsonEscape(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// pdfPath returns the disk path for a document's stored PDF.
+func (h *Handler) pdfPath(docID uuid.UUID) string {
+	return filepath.Join(h.uploadsDir, docID.String()+".pdf")
+}
+
+// savePDF writes raw PDF bytes to the uploads directory.
+func (h *Handler) savePDF(docID uuid.UUID, data []byte) error {
+	if err := os.MkdirAll(h.uploadsDir, 0o755); err != nil {
+		return fmt.Errorf("creating uploads dir: %w", err)
+	}
+	return os.WriteFile(h.pdfPath(docID), data, 0o644)
+}
+
+// ServeDocumentFile streams the stored PDF for a document.
+func (h *Handler) ServeDocumentFile(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid document ID"})
+		return
+	}
+
+	path := h.pdfPath(id)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", "inline")
+	c.File(path)
 }
 
 // ListModels returns the list of models available on the Ollama server.

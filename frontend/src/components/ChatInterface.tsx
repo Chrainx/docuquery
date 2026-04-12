@@ -15,9 +15,15 @@ interface ChatInterfaceProps {
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   onClearHistory: () => void;
+  onViewPage?: (docId: string, filename: string, page: number) => void;
 }
 
-function SourcePanel({ sources }: { sources: SourceChunk[] }) {
+interface SourcePanelProps {
+  sources: SourceChunk[];
+  onViewPage?: (docId: string, filename: string, page: number) => void;
+}
+
+function SourcePanel({ sources, onViewPage }: SourcePanelProps) {
   const [expanded, setExpanded] = useState(false);
   if (sources.length === 0) return null;
   return (
@@ -37,9 +43,16 @@ function SourcePanel({ sources }: { sources: SourceChunk[] }) {
           {sources.map((src, i) => (
             <div key={i} className="px-3 py-2.5 text-xs">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-brand-500/20 px-2 py-0.5 font-semibold text-brand-300">
-                  p.{src.page_numbers.join(", ")}
-                </span>
+                {src.page_numbers.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => onViewPage?.(src.document_id, src.filename, p)}
+                    className="rounded-full bg-brand-500/20 px-2 py-0.5 font-semibold text-brand-300 transition-colors hover:bg-brand-500/40"
+                    title="View page in PDF"
+                  >
+                    p.{p}
+                  </button>
+                ))}
                 <span className="text-slate-600">{(src.similarity_score * 100).toFixed(0)}% match</span>
                 <span className="truncate text-slate-600">{src.filename}</span>
               </div>
@@ -99,7 +112,7 @@ function exportChat(messages: ChatMessage[], contextLabel: string) {
 
 export function ChatInterface({
   documents, directories, selectedDocId, selectedDirectoryId,
-  onSelectDoc, onSelectDirectory, messages, setMessages, onClearHistory,
+  onSelectDoc, onSelectDirectory, messages, setMessages, onClearHistory, onViewPage,
 }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -285,7 +298,7 @@ export function ChatInterface({
                   <span className="h-2 w-2 animate-bounce rounded-full bg-slate-500 [animation-delay:300ms]" />
                 </div>
               )}
-              {msg.sources && <SourcePanel sources={msg.sources} />}
+              {msg.sources && <SourcePanel sources={msg.sources} onViewPage={onViewPage} />}
             </div>
           </div>
         ))}

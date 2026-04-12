@@ -6,6 +6,7 @@ import { listDirectories, listDocuments } from "@/lib/api";
 import { ChatInterface } from "@/components/ChatInterface";
 import DirectoryList from "@/components/DirectoryList";
 import { DocumentList } from "@/components/DocumentList";
+import { PdfViewer } from "@/components/PdfViewer";
 import { UploadZone } from "@/components/UploadZone";
 import { useChatHistory } from "@/lib/useChatHistory";
 
@@ -15,6 +16,7 @@ export default function Home() {
   const [selectedDocId, setSelectedDocId] = useState<string | undefined>();
   const [selectedDirectoryId, setSelectedDirectoryId] = useState<string | null>(null);
   const [draggingDocId, setDraggingDocId] = useState<string | undefined>();
+  const [pdfView, setPdfView] = useState<{ docId: string; filename: string; page: number } | null>(null);
 
   const { messages, setMessages, clearHistory } = useChatHistory(selectedDocId, selectedDirectoryId);
 
@@ -105,19 +107,32 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Col 3: Chat — fills remaining width */}
-        <div className="min-w-0 flex-1">
-          <ChatInterface
-            documents={readyDocuments}
-            directories={directories}
-            selectedDocId={selectedDocId}
-            selectedDirectoryId={selectedDirectoryId ?? undefined}
-            onSelectDoc={setSelectedDocId}
-            onSelectDirectory={handleSelectDirectory}
-            messages={messages}
-            setMessages={setMessages}
-            onClearHistory={clearHistory}
-          />
+        {/* Col 3: Chat + optional PDF viewer */}
+        <div className="flex min-w-0 flex-1 gap-4">
+          <div className={pdfView ? "w-[45%] shrink-0" : "flex-1"}>
+            <ChatInterface
+              documents={readyDocuments}
+              directories={directories}
+              selectedDocId={selectedDocId}
+              selectedDirectoryId={selectedDirectoryId ?? undefined}
+              onSelectDoc={setSelectedDocId}
+              onSelectDirectory={handleSelectDirectory}
+              messages={messages}
+              setMessages={setMessages}
+              onClearHistory={clearHistory}
+              onViewPage={(docId, filename, page) => setPdfView({ docId, filename, page })}
+            />
+          </div>
+          {pdfView && (
+            <div className="min-w-0 flex-1">
+              <PdfViewer
+                docId={pdfView.docId}
+                filename={pdfView.filename}
+                page={pdfView.page}
+                onClose={() => setPdfView(null)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
