@@ -130,11 +130,16 @@ export async function assignDocumentDirectory(id: string, directoryId: string | 
 // Query
 // ---------------------------------------------------------------------------
 
+export async function listModels(): Promise<{ name: string }[]> {
+  return request<{ name: string }[]>("/models");
+}
+
 export async function queryDocument(
   question: string,
   documentId?: string,
   directoryId?: string,
   topK: number = 5,
+  model?: string,
 ): Promise<QueryResponse> {
   return request("/query", {
     method: "POST",
@@ -144,6 +149,7 @@ export async function queryDocument(
       document_id: documentId || undefined,
       directory_id: directoryId || undefined,
       top_k: topK,
+      model: model || undefined,
     }),
   });
 }
@@ -161,6 +167,7 @@ export async function queryDocumentStream(
   onSources: (sources: SourceChunk[]) => void,
   onError: (error: string) => void,
   history?: Array<{ role: string; content: string }>,
+  model?: string,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/query/stream`, {
     method: "POST",
@@ -171,6 +178,7 @@ export async function queryDocumentStream(
       directory_id: directoryId || undefined,
       top_k: topK,
       history: history ?? [],
+      model: model || undefined,
     }),
   });
 

@@ -82,6 +82,7 @@ type QueryRequest struct {
 	DirectoryID *uuid.UUID       `json:"directory_id,omitempty"`
 	TopK        int              `json:"top_k,omitempty"`
 	History     []HistoryMessage `json:"history,omitempty"`
+	Model       string           `json:"model,omitempty"` // optional Ollama model override
 }
 
 // QueryResponse is the response from the query endpoint.

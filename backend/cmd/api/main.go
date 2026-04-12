@@ -108,6 +108,8 @@ func main() {
 		api.PATCH("/directories/:id", h.UpdateDirectory)
 		api.DELETE("/directories/:id", h.DeleteDirectory)
 
+		api.GET("/models", h.ListModels)
+
 		api.POST("/query", h.Query)
 		api.POST("/query/stream", h.QueryStream)
 	}

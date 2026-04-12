@@ -85,10 +85,57 @@ Context:
 	return sb.String()
 }
 
+// OllamaModel describes a model available on the Ollama server.
+type OllamaModel struct {
+	Name string `json:"name"`
+}
+
+// ListModels returns the list of models available on the Ollama server.
+func (c *OllamaClient) ListModels(ctx context.Context) ([]OllamaModel, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/tags", nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("calling Ollama: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Ollama returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	models := make([]OllamaModel, len(result.Models))
+	for i, m := range result.Models {
+		models[i] = OllamaModel{Name: m.Name}
+	}
+	return models, nil
+}
+
+// resolveModel returns override if non-empty, otherwise the client's default model.
+func (c *OllamaClient) resolveModel(override string) string {
+	if override != "" {
+		return override
+	}
+	return c.model
+}
+
 // Generate sends a prompt to Ollama and returns the full response (non-streaming).
-func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, error) {
+func (c *OllamaClient) Generate(ctx context.Context, prompt string, modelOverride string) (string, error) {
 	reqBody, err := json.Marshal(ollamaRequest{
-		Model:  c.model,
+		Model:  c.resolveModel(modelOverride),
 		Prompt: prompt,
 		Stream: false,
 	})
@@ -125,9 +172,9 @@ func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, err
 
 // GenerateStream sends a prompt to Ollama and streams the response token by token.
 // The callback is called for each token. Return an error from the callback to stop.
-func (c *OllamaClient) GenerateStream(ctx context.Context, prompt string, callback func(token string) error) error {
+func (c *OllamaClient) GenerateStream(ctx context.Context, prompt string, modelOverride string, callback func(token string) error) error {
 	reqBody, err := json.Marshal(ollamaRequest{
-		Model:  c.model,
+		Model:  c.resolveModel(modelOverride),
 		Prompt: prompt,
 		Stream: true,
 	})

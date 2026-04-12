@@ -505,7 +505,7 @@ func (h *Handler) Query(c *gin.Context) {
 	// 3. Build prompt and generate answer.
 	prompt := services.BuildPrompt(req.Question, sources, req.History)
 
-	answer, err := h.ollamaClient.Generate(c.Request.Context(), prompt)
+	answer, err := h.ollamaClient.Generate(c.Request.Context(), prompt, req.Model)
 	if err != nil {
 		h.logger.Error("LLM generation failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate answer"})
@@ -565,7 +565,7 @@ func (h *Handler) QueryStream(c *gin.Context) {
 
 	prompt := services.BuildPrompt(req.Question, sources, req.History)
 
-	err = h.ollamaClient.GenerateStream(c.Request.Context(), prompt, func(token string) error {
+	err = h.ollamaClient.GenerateStream(c.Request.Context(), prompt, req.Model, func(token string) error {
 		fmt.Fprintf(c.Writer, "event: token\ndata: %s\n\n", jsonEscape(token))
 		c.Writer.Flush()
 		return nil
@@ -642,6 +642,17 @@ func (h *Handler) vectorSearch(ctx context.Context, queryVector string, document
 func jsonEscape(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// ListModels returns the list of models available on the Ollama server.
+func (h *Handler) ListModels(c *gin.Context) {
+	models, err := h.ollamaClient.ListModels(c.Request.Context())
+	if err != nil {
+		h.logger.Warn("failed to list Ollama models", "error", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Ollama unavailable"})
+		return
+	}
+	c.JSON(http.StatusOK, models)
 }
 
 // DocumentProgress streams processing progress events for a document via SSE.

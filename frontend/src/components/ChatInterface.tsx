@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, Check, ChevronDown, ChevronUp, Copy, Download, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
-import { queryDocumentStream } from "@/lib/api";
+import { listModels, queryDocumentStream } from "@/lib/api";
 import type { ChatMessage, Directory, Document, SourceChunk } from "@/types";
 
 interface ChatInterfaceProps {
@@ -103,10 +103,23 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    listModels()
+      .then((models) => {
+        const names = models.map((m) => m.name);
+        setAvailableModels(names);
+        if (names.length > 0 && !selectedModel) setSelectedModel(names[0]);
+      })
+      .catch(() => { /* Ollama not running — silently skip */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +147,7 @@ export function ChatInterface({
         (sources) => setMessages((p) => p.map((m) => m.id === aId ? { ...m, sources } : m)),
         (err) => setMessages((p) => p.map((m) => m.id === aId ? { ...m, content: `Error: ${err}` } : m)),
         history,
+        selectedModel || undefined,
       );
     } catch (err) {
       setMessages((p) => p.map((m) => m.id === aId ? {
@@ -197,6 +211,16 @@ export function ChatInterface({
               >
                 <option value="">All directories</option>
                 {directories.map((dir) => <option key={dir.id} value={dir.id}>📁 {dir.name}</option>)}
+              </select>
+            )}
+            {availableModels.length > 0 && (
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="ml-auto rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                title="LLM model"
+              >
+                {availableModels.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             )}
           </div>
