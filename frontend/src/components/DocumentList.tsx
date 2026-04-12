@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, FileText, GripVertical, Loader2, Search, Trash2, X, XCircle } from "lucide-react";
-import { assignDocumentToDirectory, deleteDocument } from "@/lib/api";
+import { CheckCircle2, FileText, GripVertical, Loader2, Pencil, Search, Trash2, X, XCircle } from "lucide-react";
+import { assignDocumentToDirectory, deleteDocument, renameDocument } from "@/lib/api";
 import type { Directory, Document } from "@/types";
 
 interface DocumentListProps {
@@ -45,6 +45,8 @@ function formatBytes(bytes: number): string {
 
 export function DocumentList({ documents, directories, selectedId, onSelect, onDelete, onAssign, onDragStart, onDragEnd }: DocumentListProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "ready" | "processing" | "error">("all");
 
@@ -53,6 +55,24 @@ export function DocumentList({ documents, directories, selectedId, onSelect, onD
     const matchesStatus = statusFilter === "all" || doc.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const startRename = (e: React.MouseEvent, doc: Document) => {
+    e.stopPropagation();
+    setEditingId(doc.id);
+    setEditName(doc.display_name || doc.filename);
+  };
+
+  const commitRename = async (doc: Document) => {
+    const name = editName.trim();
+    setEditingId(null);
+    if (!name || name === (doc.display_name || doc.filename)) return;
+    try {
+      await renameDocument(doc.id, name);
+      onAssign(); // reuse refresh callback
+    } catch (err) {
+      console.error("Failed to rename:", err);
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -172,9 +192,36 @@ export function DocumentList({ documents, directories, selectedId, onSelect, onD
                   <GripVertical className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-medium ${isSelected ? "text-brand-300" : "text-slate-200"}`}>
-                    {doc.filename}
-                  </p>
+                  {editingId === doc.id ? (
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename(doc);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onBlur={() => commitRename(doc)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full rounded bg-white/10 px-1.5 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1 group/name">
+                      <p className={`truncate text-sm font-medium ${isSelected ? "text-brand-300" : "text-slate-200"}`}>
+                        {doc.display_name || doc.filename}
+                      </p>
+                      {doc.display_name && (
+                        <span className="shrink-0 text-[10px] text-slate-600 truncate">({doc.filename})</span>
+                      )}
+                      <button
+                        onClick={(e) => startRename(e, doc)}
+                        className="ml-0.5 shrink-0 text-slate-700 opacity-0 transition-opacity hover:text-slate-400 group-hover/name:opacity-100"
+                        title="Rename"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                   <p className="mt-0.5 text-xs text-slate-600">
                     {doc.page_count}p · {formatBytes(doc.file_size_bytes)}
                     {doc.chunk_count > 0 && ` · ${doc.chunk_count} chunks`}
@@ -192,7 +239,7 @@ export function DocumentList({ documents, directories, selectedId, onSelect, onD
                       ))}
                     </select>
                   )}
-                </div>
+                </div> {/* min-w-0 flex-1 */}
                 <div className="flex flex-shrink-0 items-center gap-1.5">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.badge}`}>
                     <StatusIcon className={`h-3 w-3 ${status.iconClass}`} />

@@ -110,6 +110,22 @@ export async function deleteDocument(id: string): Promise<void> {
   await request(`/documents/${id}`, { method: "DELETE" });
 }
 
+export async function renameDocument(id: string, displayName: string): Promise<void> {
+  await request(`/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+export async function assignDocumentDirectory(id: string, directoryId: string | null): Promise<void> {
+  await request(`/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ directory_id: directoryId }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Query
 // ---------------------------------------------------------------------------

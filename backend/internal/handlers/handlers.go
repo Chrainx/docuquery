@@ -190,8 +190,8 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 // ListDocuments returns all documents, optionally filtered by directory.
 func (h *Handler) ListDocuments(c *gin.Context) {
 	var args []interface{}
-	query := `SELECT d.id, d.filename, d.page_count, d.file_size_bytes, d.status, d.created_at,
-			         COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
+	query := `SELECT d.id, d.filename, COALESCE(d.display_name, ''), d.page_count, d.file_size_bytes,
+			         d.status, d.created_at, COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
 			  FROM documents d
 			  LEFT JOIN chunks c ON c.document_id = d.id`
 
@@ -218,7 +218,7 @@ func (h *Handler) ListDocuments(c *gin.Context) {
 	docs := []models.Document{}
 	for rows.Next() {
 		var doc models.Document
-		err := rows.Scan(&doc.ID, &doc.Filename, &doc.PageCount, &doc.FileSizeBytes,
+		err := rows.Scan(&doc.ID, &doc.Filename, &doc.DisplayName, &doc.PageCount, &doc.FileSizeBytes,
 			&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount, &doc.DirectoryID)
 		if err != nil {
 			h.logger.Error("failed to scan document row", "error", err)
@@ -240,14 +240,14 @@ func (h *Handler) GetDocument(c *gin.Context) {
 
 	var doc models.Document
 	err = h.db.QueryRow(c.Request.Context(),
-		`SELECT d.id, d.filename, d.page_count, d.file_size_bytes, d.status, d.created_at,
-		        COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
+		`SELECT d.id, d.filename, COALESCE(d.display_name, ''), d.page_count, d.file_size_bytes,
+		        d.status, d.created_at, COALESCE(d.error_message, ''), COUNT(c.id) as chunk_count, d.directory_id
 		 FROM documents d
 		 LEFT JOIN chunks c ON c.document_id = d.id
 		 WHERE d.id = $1
 		 GROUP BY d.id`,
 		id,
-	).Scan(&doc.ID, &doc.Filename, &doc.PageCount, &doc.FileSizeBytes,
+	).Scan(&doc.ID, &doc.Filename, &doc.DisplayName, &doc.PageCount, &doc.FileSizeBytes,
 		&doc.Status, &doc.CreatedAt, &doc.ErrorMessage, &doc.ChunkCount, &doc.DirectoryID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
@@ -279,27 +279,31 @@ func (h *Handler) DeleteDocument(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 
-// AssignDirectory assigns or unassigns a document to a directory.
-func (h *Handler) AssignDirectory(c *gin.Context) {
+// UpdateDocument handles PATCH /documents/:id.
+// Supports updating directory_id (assign/unassign) and display_name (rename).
+func (h *Handler) UpdateDocument(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid document ID"})
 		return
 	}
 
-	var req models.AssignDirectoryRequest
+	var req models.UpdateDocumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	result, err := h.db.Exec(c.Request.Context(),
-		`UPDATE documents SET directory_id = $1 WHERE id = $2`,
-		req.DirectoryID, id,
+		`UPDATE documents
+		 SET directory_id  = COALESCE($1, directory_id),
+		     display_name  = $2
+		 WHERE id = $3`,
+		req.DirectoryID, req.DisplayName, id,
 	)
 	if err != nil {
-		h.logger.Error("failed to assign directory", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign directory"})
+		h.logger.Error("failed to update document", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update document"})
 		return
 	}
 	if result.RowsAffected() == 0 {

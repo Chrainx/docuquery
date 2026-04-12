@@ -115,16 +115,20 @@ Delete a document and all its chunks.
 
 ### `PATCH /documents/:id`
 
-Assign or unassign a document to a directory.
+Update a document's directory assignment and/or display name. All fields are optional.
 
 **Request body**
 ```json
 {
-  "directory_id": "661e9511-f30c-52e5-b827-557766551111"
+  "directory_id": "661e9511-f30c-52e5-b827-557766551111",
+  "display_name": "Q3 Report"
 }
 ```
 
-Set `directory_id` to `null` to unassign.
+| Field | Type | Description |
+|-------|------|-------------|
+| `directory_id` | UUID \| null | Assign to a directory; `null` to unassign |
+| `display_name` | string | Human-readable label shown instead of the filename; `""` to clear |
 
 **Response** `200 OK`
 ```json

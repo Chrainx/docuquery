@@ -31,9 +31,11 @@ type CreateDirectoryRequest struct {
 	Description string `json:"description,omitempty"`
 }
 
-// AssignDirectoryRequest is the request body for assigning a document to a directory.
-type AssignDirectoryRequest struct {
+// UpdateDocumentRequest is the request body for patching a document.
+// Both fields are optional — only non-nil fields are applied.
+type UpdateDocumentRequest struct {
 	DirectoryID *uuid.UUID `json:"directory_id"` // null to unassign
+	DisplayName *string    `json:"display_name"` // nil = no change, "" = clear back to filename
 }
 
 // UpdateDirectoryRequest is the request body for renaming/updating a directory.
@@ -46,6 +48,7 @@ type UpdateDirectoryRequest struct {
 type Document struct {
 	ID            uuid.UUID      `json:"id"`
 	Filename      string         `json:"filename"`
+	DisplayName   string         `json:"display_name,omitempty"` // user-set label; falls back to Filename when empty
 	PageCount     int            `json:"page_count"`
 	FileSizeBytes int64          `json:"file_size_bytes"`
 	Status        DocumentStatus `json:"status"`

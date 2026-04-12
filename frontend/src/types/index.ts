@@ -15,6 +15,7 @@ export interface Directory {
 export interface Document {
   id: string;
   filename: string;
+  display_name?: string; // user-set label; falls back to filename when absent
   page_count: number;
   file_size_bytes: number;
   status: DocumentStatus;

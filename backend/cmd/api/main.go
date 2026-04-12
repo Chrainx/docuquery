@@ -99,7 +99,7 @@ func main() {
 		api.GET("/documents", h.ListDocuments)
 		api.GET("/documents/:id", h.GetDocument)
 		api.DELETE("/documents/:id", h.DeleteDocument)
-		api.PATCH("/documents/:id", h.AssignDirectory)
+		api.PATCH("/documents/:id", h.UpdateDocument)
 
 		api.POST("/directories", h.CreateDirectory)
 		api.GET("/directories", h.ListDirectories)
