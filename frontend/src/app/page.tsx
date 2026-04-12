@@ -2,21 +2,53 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Directory, Document } from "@/types";
-import { listDirectories, listDocuments } from "@/lib/api";
+import { checkAuthConfig, listDirectories, listDocuments, setAuthToken } from "@/lib/api";
 import { ChatInterface } from "@/components/ChatInterface";
 import DirectoryList from "@/components/DirectoryList";
 import { DocumentList } from "@/components/DocumentList";
+import { LoginGate } from "@/components/LoginGate";
 import { PdfViewer } from "@/components/PdfViewer";
 import { UploadZone } from "@/components/UploadZone";
 import { useChatHistory } from "@/lib/useChatHistory";
 
+const AUTH_TOKEN_KEY = "docuquery_auth_token";
+
 export default function Home() {
+  const [authReady, setAuthReady] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [directories, setDirectories] = useState<Directory[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | undefined>();
   const [selectedDirectoryId, setSelectedDirectoryId] = useState<string | null>(null);
   const [draggingDocId, setDraggingDocId] = useState<string | undefined>();
   const [pdfView, setPdfView] = useState<{ docId: string; filename: string; page: number } | null>(null);
+
+  // On mount: check if auth is required, restore saved token.
+  useEffect(() => {
+    const saved = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (saved) setAuthToken(saved);
+
+    checkAuthConfig()
+      .then(({ auth_enabled }) => {
+        if (auth_enabled && !saved) {
+          setNeedsLogin(true);
+        } else {
+          setAuthReady(true);
+        }
+      })
+      .catch(() => setAuthReady(true)); // backend down — let main UI show anyway
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAuthenticated = (token: string) => {
+    setAuthToken(token);
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    setNeedsLogin(false);
+    setAuthReady(true);
+  };
+
+  if (needsLogin) return <LoginGate onAuthenticated={handleAuthenticated} />;
+  if (!authReady) return null; // brief flash while checking
 
   const { messages, setMessages, clearHistory } = useChatHistory(selectedDocId, selectedDirectoryId);
 

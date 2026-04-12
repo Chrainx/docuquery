@@ -16,12 +16,22 @@ class ApiError extends Error {
   }
 }
 
+// Auth token — set once on login, used for all subsequent requests.
+let _authToken = "";
+
+export function setAuthToken(token: string) {
+  _authToken = token;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string>),
+  };
+  if (_authToken) headers["Authorization"] = `Bearer ${_authToken}`;
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -30,6 +40,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export async function checkAuthConfig(): Promise<{ auth_enabled: boolean }> {
+  return request("/auth/config");
+}
+
+export async function login(password: string): Promise<{ token: string; auth_enabled: boolean }> {
+  return request("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +294,8 @@ export function subscribeToDocumentProgress(
   docId: string,
   onEvent: (event: ProgressEvent) => void,
 ): () => void {
-  const url = `${API_BASE}/documents/${docId}/progress`;
+  const qs = _authToken ? `?token=${encodeURIComponent(_authToken)}` : "";
+  const url = `${API_BASE}/documents/${docId}/progress${qs}`;
   const es = new EventSource(url);
 
   es.addEventListener("progress", (e: MessageEvent) => {

@@ -81,7 +81,7 @@ func main() {
 	ollamaClient := services.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel)
 
 	// Initialize handlers.
-	h := handlers.NewHandler(pool, embeddingClient, ollamaClient, cfg.MaxUploadSizeMB, cfg.UploadsDir, logger)
+	h := handlers.NewHandler(pool, embeddingClient, ollamaClient, cfg.MaxUploadSizeMB, cfg.UploadsDir, cfg.AuthPassword, logger)
 
 	// Set up Gin router.
 	gin.SetMode(gin.ReleaseMode)
@@ -94,6 +94,10 @@ func main() {
 	api := r.Group("/api/v1")
 	{
 		api.GET("/health", h.Health)
+		api.GET("/auth/config", h.AuthConfig)
+		api.POST("/auth/login", h.Login)
+
+		api.Use(middleware.BearerAuth(cfg.AuthPassword))
 
 		api.POST("/documents", h.UploadDocument)
 		api.GET("/documents", h.ListDocuments)

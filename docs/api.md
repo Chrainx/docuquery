@@ -379,6 +379,47 @@ standard JSON response (not SSE) with a "no content found" message.
 
 ---
 
+## Auth
+
+Authentication is opt-in — disabled by default. Set the `AUTH_PASSWORD` environment variable to enable it.
+
+### `GET /auth/config`
+
+Returns whether authentication is currently enabled. This endpoint is always public.
+
+**Response** `200 OK`
+```json
+{ "auth_enabled": true }
+```
+
+### `POST /auth/login`
+
+Exchange a password for a bearer token. Always public.
+
+**Request:**
+```json
+{ "password": "your-password" }
+```
+
+**Response** `200 OK`
+```json
+{ "token": "a1b2c3...", "auth_enabled": true }
+```
+
+**Response** `401 Unauthorized` — incorrect password.
+
+Once you have a token, pass it on every subsequent request:
+```
+Authorization: Bearer <token>
+```
+
+For SSE endpoints (EventSource doesn't support custom headers), pass it as a query param:
+```
+GET /api/v1/documents/:id/progress?token=<token>
+```
+
+---
+
 ## Embedding Service
 
 Base URL: `http://localhost:8001`

@@ -15,9 +15,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Chrainx/docuquery/backend/internal/middleware"
 	"github.com/Chrainx/docuquery/backend/internal/models"
 	"github.com/Chrainx/docuquery/backend/internal/services"
 )
+
+// LoginRequest is the body for POST /auth/login.
+type LoginRequest struct {
+	Password string `json:"password" binding:"required"`
+}
 
 // Handler holds dependencies for all HTTP handlers.
 type Handler struct {
@@ -26,6 +32,7 @@ type Handler struct {
 	ollamaClient    *services.OllamaClient
 	maxUploadBytes  int64
 	uploadsDir      string
+	authPassword    string
 	logger          *slog.Logger
 	progress        *ProgressBroker
 }
@@ -37,6 +44,7 @@ func NewHandler(
 	ollamaClient *services.OllamaClient,
 	maxUploadMB int,
 	uploadsDir string,
+	authPassword string,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
@@ -45,6 +53,7 @@ func NewHandler(
 		ollamaClient:    ollamaClient,
 		maxUploadBytes:  int64(maxUploadMB) * 1024 * 1024,
 		uploadsDir:      uploadsDir,
+		authPassword:    authPassword,
 		logger:          logger,
 		progress:        newProgressBroker(),
 	}
@@ -61,6 +70,30 @@ func (h *Handler) Health(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "healthy"})
+}
+
+// Login validates a password and returns a bearer token.
+// When auth is disabled (AUTH_PASSWORD unset), always returns a token.
+func (h *Handler) Login(c *gin.Context) {
+	if h.authPassword == "" {
+		c.JSON(http.StatusOK, gin.H{"token": "", "auth_enabled": false})
+		return
+	}
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password is required"})
+		return
+	}
+	if req.Password != h.authPassword {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect password"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": middleware.TokenForPassword(h.authPassword), "auth_enabled": true})
+}
+
+// AuthConfig returns whether authentication is enabled (used by the frontend on startup).
+func (h *Handler) AuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"auth_enabled": h.authPassword != ""})
 }
 
 // UploadDocument handles PDF upload, parsing, embedding, and storage.
