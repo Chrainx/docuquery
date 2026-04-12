@@ -100,6 +100,38 @@ Get a single document by ID.
 
 ---
 
+### `GET /documents/:id/progress`
+
+Stream processing progress events via SSE. Connect immediately after upload while status is `processing`.
+
+**Response:** `text/event-stream`
+
+```
+event: progress
+data: {"stage":"parsing","message":"Extracting text from PDF…"}
+
+event: progress
+data: {"stage":"embedding","message":"Generating embeddings for 42 chunks…"}
+
+event: progress
+data: {"stage":"storing","message":"Storing 42 chunks…"}
+
+event: progress
+data: {"stage":"ready","message":"Document is ready"}
+```
+
+| Stage | Meaning |
+|-------|---------|
+| `parsing` | PDF text extraction in progress |
+| `embedding` | Generating vector embeddings |
+| `storing` | Writing chunks to database |
+| `ready` | Processing complete — document is queryable |
+| `error` | Processing failed — see `message` for details |
+
+The stream closes automatically when a `ready` or `error` event is sent.
+
+---
+
 ### `DELETE /documents/:id`
 
 Delete a document and all its chunks.

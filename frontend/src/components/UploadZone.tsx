@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Upload, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2, X } from "lucide-react";
-import { uploadDocument } from "@/lib/api";
+import { subscribeToDocumentProgress, uploadDocument } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 
 interface UploadZoneProps {
@@ -12,7 +12,8 @@ interface UploadZoneProps {
 
 interface FileUploadState {
   file: File;
-  status: "pending" | "uploading" | "done" | "error";
+  status: "pending" | "uploading" | "processing" | "done" | "error";
+  stage?: string; // e.g. "Parsing PDF…", "Generating embeddings…"
   error?: string;
 }
 
@@ -22,7 +23,7 @@ export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZonePr
   const [queue, setQueue] = useState<FileUploadState[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
-  const isUploading = queue.some((f) => f.status === "uploading" || f.status === "pending");
+  const isUploading = queue.some((f) => f.status === "uploading" || f.status === "pending" || f.status === "processing");
 
   const processQueue = useCallback(async (files: FileUploadState[], directoryId?: string) => {
     for (let i = 0; i < files.length; i++) {
@@ -32,9 +33,36 @@ export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZonePr
       setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "uploading" } : f));
 
       try {
-        await uploadDocument(item.file, directoryId);
-        setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "done" } : f));
-        onUploadComplete();
+        const result = await uploadDocument(item.file, directoryId);
+        onUploadComplete(); // refresh doc list (shows "processing" badge)
+
+        // Subscribe to backend progress events.
+        setQueue((prev) => prev.map((f) =>
+          f.file === item.file ? { ...f, status: "processing", stage: "Parsing PDF…" } : f
+        ));
+
+        await new Promise<void>((resolve) => {
+          const unsub = subscribeToDocumentProgress(result.id, (event) => {
+            if (event.stage === "ready") {
+              setQueue((prev) => prev.map((f) =>
+                f.file === item.file ? { ...f, status: "done", stage: undefined } : f
+              ));
+              onUploadComplete(); // refresh to show "ready" badge
+              resolve();
+            } else if (event.stage === "error") {
+              setQueue((prev) => prev.map((f) =>
+                f.file === item.file ? { ...f, status: "error", error: event.message } : f
+              ));
+              resolve();
+            } else {
+              setQueue((prev) => prev.map((f) =>
+                f.file === item.file ? { ...f, stage: event.message } : f
+              ));
+            }
+          });
+          // Resolve after 60s max in case SSE never fires (e.g. browser blocks EventSource).
+          setTimeout(() => { unsub(); resolve(); }, 60_000);
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed.";
         setQueue((prev) => prev.map((f) => f.file === item.file ? { ...f, status: "error", error: msg } : f));
@@ -128,14 +156,21 @@ export function UploadZone({ onUploadComplete, activeDirectoryId }: UploadZonePr
               </div>
               {queue.map((item, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-lg bg-white/5 px-2.5 py-2">
-                  {item.status === "uploading" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-400" />}
+                  {(item.status === "uploading" || item.status === "processing") && (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-400" />
+                  )}
                   {item.status === "pending" && <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-600" />}
                   {item.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />}
                   {item.status === "error" && <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />}
-                  <span className="min-w-0 flex-1 truncate text-xs text-slate-300">{item.file.name}</span>
-                  {item.status === "error" && (
-                    <span className="shrink-0 text-[10px] text-red-400">{item.error}</span>
-                  )}
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-xs text-slate-300">{item.file.name}</span>
+                    {item.status === "processing" && item.stage && (
+                      <span className="text-[10px] text-slate-500">{item.stage}</span>
+                    )}
+                    {item.status === "error" && item.error && (
+                      <span className="text-[10px] text-red-400">{item.error}</span>
+                    )}
+                  </div>
                   {(item.status === "done" || item.status === "error") && (
                     <button onClick={() => setQueue((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-slate-700 hover:text-slate-400">
                       <X className="h-3 w-3" />

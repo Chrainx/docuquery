@@ -98,6 +98,7 @@ func main() {
 		api.POST("/documents", h.UploadDocument)
 		api.GET("/documents", h.ListDocuments)
 		api.GET("/documents/:id", h.GetDocument)
+		api.GET("/documents/:id/progress", h.DocumentProgress)
 		api.DELETE("/documents/:id", h.DeleteDocument)
 		api.PATCH("/documents/:id", h.UpdateDocument)
 

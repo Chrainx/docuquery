@@ -244,6 +244,43 @@ export async function queryDocumentStream(
 }
 
 // ---------------------------------------------------------------------------
+// Processing Progress (SSE)
+// ---------------------------------------------------------------------------
+
+export interface ProgressEvent {
+  stage: "parsing" | "embedding" | "storing" | "ready" | "error";
+  message: string;
+}
+
+/**
+ * Subscribe to document processing progress events.
+ * Returns a cleanup function to close the stream.
+ */
+export function subscribeToDocumentProgress(
+  docId: string,
+  onEvent: (event: ProgressEvent) => void,
+): () => void {
+  const url = `${API_BASE}/documents/${docId}/progress`;
+  const es = new EventSource(url);
+
+  es.addEventListener("progress", (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data) as ProgressEvent;
+      onEvent(data);
+      if (data.stage === "ready" || data.stage === "error") {
+        es.close();
+      }
+    } catch {
+      // ignore malformed event
+    }
+  });
+
+  es.onerror = () => es.close();
+
+  return () => es.close();
+}
+
+// ---------------------------------------------------------------------------
 // Health
 // ---------------------------------------------------------------------------
 

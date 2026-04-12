@@ -24,6 +24,7 @@ type Handler struct {
 	ollamaClient    *services.OllamaClient
 	maxUploadBytes  int64
 	logger          *slog.Logger
+	progress        *ProgressBroker
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -40,6 +41,7 @@ func NewHandler(
 		ollamaClient:    ollamaClient,
 		maxUploadBytes:  int64(maxUploadMB) * 1024 * 1024,
 		logger:          logger,
+		progress:        newProgressBroker(),
 	}
 }
 
@@ -125,6 +127,10 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 	log := h.logger.With("document_id", docID, "filename", filename)
 	log.Info("processing document")
 
+	emit := func(stage, message string) {
+		h.progress.Publish(docID, models.ProgressEvent{Stage: stage, Message: message})
+	}
+
 	updateStatus := func(status models.DocumentStatus, errMsg string) {
 		_, err := h.db.Exec(ctx,
 			`UPDATE documents SET status = $1, error_message = $2 WHERE id = $3`,
@@ -136,10 +142,12 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 	}
 
 	// 1. Parse PDF into chunks.
+	emit("parsing", "Extracting text from PDF…")
 	parsed, err := h.embeddingClient.ParsePDF(ctx, filename, pdfData)
 	if err != nil {
 		log.Error("failed to parse PDF", "error", err)
 		updateStatus(models.StatusError, fmt.Sprintf("PDF parsing failed: %v", err))
+		emit("error", fmt.Sprintf("PDF parsing failed: %v", err))
 		return
 	}
 
@@ -151,10 +159,12 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 	if len(parsed.Chunks) == 0 {
 		log.Warn("no chunks extracted from PDF")
 		updateStatus(models.StatusError, "no text content found in PDF")
+		emit("error", "no text content found in PDF")
 		return
 	}
 
 	// 2. Generate embeddings.
+	emit("embedding", fmt.Sprintf("Generating embeddings for %d chunks…", len(parsed.Chunks)))
 	texts := make([]string, len(parsed.Chunks))
 	for i, chunk := range parsed.Chunks {
 		texts[i] = chunk.Text
@@ -164,10 +174,12 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 	if err != nil {
 		log.Error("failed to generate embeddings", "error", err)
 		updateStatus(models.StatusError, fmt.Sprintf("embedding failed: %v", err))
+		emit("error", fmt.Sprintf("embedding failed: %v", err))
 		return
 	}
 
 	// 3. Store chunks with embeddings.
+	emit("storing", fmt.Sprintf("Storing %d chunks…", len(parsed.Chunks)))
 	for i, chunk := range parsed.Chunks {
 		chunkID := uuid.New()
 		_, err := h.db.Exec(ctx,
@@ -179,11 +191,13 @@ func (h *Handler) processDocument(ctx context.Context, docID uuid.UUID, filename
 		if err != nil {
 			log.Error("failed to insert chunk", "chunk_index", i, "error", err)
 			updateStatus(models.StatusError, fmt.Sprintf("chunk storage failed: %v", err))
+			emit("error", fmt.Sprintf("chunk storage failed: %v", err))
 			return
 		}
 	}
 
 	updateStatus(models.StatusReady, "")
+	emit("ready", "Document is ready")
 	log.Info("document processed successfully", "chunks", len(parsed.Chunks))
 }
 
@@ -628,6 +642,42 @@ func (h *Handler) vectorSearch(ctx context.Context, queryVector string, document
 func jsonEscape(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// DocumentProgress streams processing progress events for a document via SSE.
+func (h *Handler) DocumentProgress(c *gin.Context) {
+	idStr := c.Param("id")
+	docID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid document id"})
+		return
+	}
+
+	ch, cleanup := h.progress.Subscribe(docID)
+	defer cleanup()
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	ctx := c.Request.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, _ := json.Marshal(event)
+			fmt.Fprintf(c.Writer, "event: progress\ndata: %s\n\n", data)
+			c.Writer.Flush()
+			if event.Stage == "ready" || event.Stage == "error" {
+				return
+			}
+		}
+	}
 }
 
 // pgvectorString converts a float32 slice to pgvector's text format: [0.1,0.2,0.3].

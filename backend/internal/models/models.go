@@ -90,6 +90,12 @@ type QueryResponse struct {
 	Sources []SourceChunk `json:"sources"`
 }
 
+// ProgressEvent is emitted during async document processing.
+type ProgressEvent struct {
+	Stage   string `json:"stage"`   // parsing | embedding | storing | ready | error
+	Message string `json:"message"` // human-readable description
+}
+
 // SourceChunk is a retrieved chunk included in the query response.
 type SourceChunk struct {
 	Content         string  `json:"content"`
